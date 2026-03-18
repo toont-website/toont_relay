@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { parseSlackRequest } from "@/lib/slack/verify";
 import { handleSmsCommand } from "@/lib/slack/commands/sms";
+import { handleContactCommand } from "@/lib/slack/commands/contact";
 
 export async function POST(request: NextRequest) {
   const result = await parseSlackRequest(request);
@@ -17,6 +18,11 @@ export async function POST(request: NextRequest) {
     const response = await handleSmsCommand(triggerId, text, userId, channelId);
     if (response) return NextResponse.json(response);
     return new NextResponse(null, { status: 200 });
+  }
+
+  if (command === "/contact") {
+    const response = await handleContactCommand(text);
+    return NextResponse.json(response);
   }
 
   return NextResponse.json({ text: `알 수 없는 커맨드: ${command}` });
