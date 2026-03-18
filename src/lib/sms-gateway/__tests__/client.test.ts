@@ -4,14 +4,17 @@ import { SmsGatewayClient } from "../client";
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
+const basicAuth = Buffer.from("test-user:test-pass").toString("base64");
+
 describe("SmsGatewayClient", () => {
   let client: SmsGatewayClient;
 
   beforeEach(() => {
     vi.clearAllMocks();
     client = new SmsGatewayClient({
-      baseUrl: "http://sms-gateway:3080",
-      jwtToken: "test-token",
+      baseUrl: "http://sms-backend:3080",
+      username: "test-user",
+      password: "test-pass",
       webhookSecret: "test-secret",
     });
   });
@@ -32,11 +35,11 @@ describe("SmsGatewayClient", () => {
       const result = await client.sendSMS("+821012345678", "테스트 메시지");
 
       expect(mockFetch).toHaveBeenCalledWith(
-        "http://sms-gateway:3080/3rdparty/v1/message",
+        "http://sms-backend:3080/api/3rdparty/v1/message",
         expect.objectContaining({
           method: "POST",
           headers: expect.objectContaining({
-            Authorization: "Bearer test-token",
+            Authorization: `Basic ${basicAuth}`,
             "Content-Type": "application/json",
           }),
         })
@@ -72,10 +75,10 @@ describe("SmsGatewayClient", () => {
       const result = await client.getMessageStatus("msg-123");
 
       expect(mockFetch).toHaveBeenCalledWith(
-        "http://sms-gateway:3080/3rdparty/v1/message/msg-123",
+        "http://sms-backend:3080/api/3rdparty/v1/message/msg-123",
         expect.objectContaining({
           headers: expect.objectContaining({
-            Authorization: "Bearer test-token",
+            Authorization: `Basic ${basicAuth}`,
           }),
         })
       );

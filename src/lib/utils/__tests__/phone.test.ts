@@ -20,6 +20,9 @@ describe("normalizePhoneNumber", () => {
   it("유효하지 않은 번호 → null", () => {
     expect(normalizePhoneNumber("12345")).toBeNull();
   });
+  it("+8201095337464 → +821095337464 (0 중복 제거)", () => {
+    expect(normalizePhoneNumber("+8201095337464")).toBe("+821095337464");
+  });
 });
 
 describe("formatPhoneNumber", () => {
@@ -28,5 +31,8 @@ describe("formatPhoneNumber", () => {
   });
   it("+821098765432 → 010-9876-5432", () => {
     expect(formatPhoneNumber("+821098765432")).toBe("010-9876-5432");
+  });
+  it("+8201095337464 → 010-9533-7464 (0 중복 처리)", () => {
+    expect(formatPhoneNumber("+8201095337464")).toBe("010-9533-7464");
   });
 });
