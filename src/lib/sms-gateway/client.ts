@@ -27,7 +27,7 @@ export class SmsGatewayClient {
     message: string
   ): Promise<SmsGatewaySendResponse> {
     const response = await fetch(
-      `${this.baseUrl}/3rdparty/v1/message`,
+      `${this.baseUrl}/api/3rdparty/v1/message`,
       {
         method: "POST",
         headers: {
@@ -53,7 +53,7 @@ export class SmsGatewayClient {
 
   async getMessageStatus(messageId: string): Promise<SmsGatewayMessageStatus> {
     const response = await fetch(
-      `${this.baseUrl}/3rdparty/v1/message/${messageId}`,
+      `${this.baseUrl}/api/3rdparty/v1/message/${messageId}`,
       {
         headers: {
           Authorization: `Bearer ${this.jwtToken}`,
