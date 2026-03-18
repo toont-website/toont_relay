@@ -1,6 +1,70 @@
 import { getSlackClient } from "../client";
+import { getEnv } from "@/lib/config/env";
+import { prisma } from "@/lib/db/prisma";
+import { normalizePhoneNumber, formatPhoneNumber } from "@/lib/utils/phone";
+import { getSmsGatewayClient } from "@/lib/sms-gateway/client";
+import { buildSmsSentMessage, buildSmsFailedMessage } from "../messages/sms-sent";
+import { logger } from "@/lib/logger";
 
-export async function handleSmsCommand(triggerId: string) {
+/**
+ * /sms 커맨드 핸들러
+ * - 인자 없음 → 모달 오픈
+ * - /sms [번호|이름] [메시지] → 인라인 발송
+ */
+export async function handleSmsCommand(
+  triggerId: string,
+  text: string,
+  userId: string,
+  channelId: string
+) {
+  const trimmed = text.trim();
+
+  // 인자 없으면 모달
+  if (!trimmed) {
+    return openSmsModal(triggerId);
+  }
+
+  // 첫 번째 토큰 = 받는 사람, 나머지 = 메시지
+  const spaceIdx = trimmed.indexOf(" ");
+  if (spaceIdx === -1) {
+    return { text: "사용법: `/sms [번호 또는 이름] [메시지]`\n예: `/sms 강동현 내일 배송 예정입니다`" };
+  }
+
+  const recipientInput = trimmed.slice(0, spaceIdx);
+  const message = trimmed.slice(spaceIdx + 1).trim();
+
+  if (!message) {
+    return { text: "메시지 내용을 입력하세요.\n예: `/sms 강동현 내일 배송 예정입니다`" };
+  }
+
+  // 전화번호인지 확인
+  const normalized = normalizePhoneNumber(recipientInput);
+  if (normalized) {
+    return sendInlineSms(normalized, message, userId);
+  }
+
+  // 이름으로 검색
+  const contacts = await prisma.contact.findMany({
+    where: { name: { contains: recipientInput } },
+    take: 10,
+  });
+
+  if (contacts.length === 0) {
+    return { text: `"${recipientInput}" 검색 결과 없음. 번호로 직접 입력하세요.\n예: \`/sms 010-1234-5678 안녕하세요\`` };
+  }
+
+  if (contacts.length === 1) {
+    return sendInlineSms(contacts[0].phoneNumber, message, userId);
+  }
+
+  // 여러 명 매칭
+  const list = contacts
+    .map((c, i) => `${i + 1}. ${c.name} (${formatPhoneNumber(c.phoneNumber)})`)
+    .join("\n");
+  return { text: `"${recipientInput}" 검색 결과 ${contacts.length}명:\n${list}\n\n정확한 이름이나 번호로 다시 입력하세요.` };
+}
+
+async function openSmsModal(triggerId: string) {
   const client = getSlackClient();
 
   await client.views.open({
@@ -37,4 +101,60 @@ export async function handleSmsCommand(triggerId: string) {
       ],
     },
   });
+
+  return null; // 모달이니까 슬랙에 텍스트 응답 안 함
+}
+
+async function sendInlineSms(phoneNumber: string, message: string, userId: string) {
+  const contact = await prisma.contact.findUnique({ where: { phoneNumber } });
+  const recipientName = contact
+    ? `${contact.name} (${formatPhoneNumber(phoneNumber)})`
+    : formatPhoneNumber(phoneNumber);
+
+  const env = getEnv();
+  const slackClient = getSlackClient();
+
+  try {
+    const smsClient = getSmsGatewayClient();
+    const result = await smsClient.sendSMS(phoneNumber, message);
+
+    await prisma.messageLog.create({
+      data: {
+        direction: "outbound",
+        phoneNumber,
+        message,
+        status: "sent",
+        contactId: contact?.id,
+      },
+    });
+
+    await slackClient.chat.postMessage({
+      channel: env.SLACK_CHANNEL_CS_SMS,
+      ...buildSmsSentMessage({
+        recipientName,
+        phoneNumber,
+        message,
+        senderUserId: userId,
+        gatewayMessageId: result.id,
+      }),
+    });
+
+    logger.info({ phoneNumber, gatewayId: result.id }, "SMS 인라인 발신 성공");
+    return { text: `SMS 발송 완료: ${recipientName}` };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : "알 수 없는 에러";
+    logger.error({ phoneNumber, error: errorMsg }, "SMS 인라인 발신 실패");
+
+    await slackClient.chat.postMessage({
+      channel: env.SLACK_CHANNEL_CS_SMS,
+      ...buildSmsFailedMessage({
+        recipientName,
+        phoneNumber,
+        message,
+        error: errorMsg,
+      }),
+    });
+
+    return { text: `SMS 발송 실패: ${recipientName}\n에러: ${errorMsg}` };
+  }
 }

@@ -8,10 +8,14 @@ export async function POST(request: NextRequest) {
 
   const { params } = result;
   const command = params.get("command");
-  const triggerId = params.get("trigger_id");
+  const triggerId = params.get("trigger_id") ?? "";
+  const text = params.get("text") ?? "";
+  const userId = params.get("user_id") ?? "";
+  const channelId = params.get("channel_id") ?? "";
 
-  if ((command === "/문자" || command === "/sms") && triggerId) {
-    await handleSmsCommand(triggerId);
+  if (command === "/문자" || command === "/sms") {
+    const response = await handleSmsCommand(triggerId, text, userId, channelId);
+    if (response) return NextResponse.json(response);
     return new NextResponse(null, { status: 200 });
   }
 
