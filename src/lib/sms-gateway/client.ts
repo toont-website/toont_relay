@@ -7,18 +7,19 @@ import type {
 
 interface SmsGatewayClientConfig {
   baseUrl: string;
-  jwtToken: string;
+  username: string;
+  password: string;
   webhookSecret: string;
 }
 
 export class SmsGatewayClient {
   private readonly baseUrl: string;
-  private readonly jwtToken: string;
+  private readonly basicAuth: string;
   private readonly webhookSecret: string;
 
   constructor(config: SmsGatewayClientConfig) {
     this.baseUrl = config.baseUrl;
-    this.jwtToken = config.jwtToken;
+    this.basicAuth = Buffer.from(`${config.username}:${config.password}`).toString("base64");
     this.webhookSecret = config.webhookSecret;
   }
 
@@ -31,7 +32,7 @@ export class SmsGatewayClient {
       {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${this.jwtToken}`,
+          Authorization: `Basic ${this.basicAuth}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -56,7 +57,7 @@ export class SmsGatewayClient {
       `${this.baseUrl}/api/3rdparty/v1/message/${messageId}`,
       {
         headers: {
-          Authorization: `Bearer ${this.jwtToken}`,
+          Authorization: `Basic ${this.basicAuth}`,
         },
       }
     );
@@ -95,7 +96,8 @@ export function getSmsGatewayClient(): SmsGatewayClient {
     const env = getEnv();
     _client = new SmsGatewayClient({
       baseUrl: env.SMS_GATEWAY_URL,
-      jwtToken: env.SMS_GATEWAY_JWT_TOKEN,
+      username: env.SMS_GATEWAY_USERNAME,
+      password: env.SMS_GATEWAY_PASSWORD,
       webhookSecret: env.SMS_GATEWAY_WEBHOOK_SECRET,
     });
   }
