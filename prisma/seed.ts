@@ -3,9 +3,7 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 const contacts = [
-  { name: "필름집", phoneNumber: "+8201012345678", memo: "필름 작업 업체" },
-  { name: "우리퀵", phoneNumber: "+8201023456789", memo: "서울 배차" },
-  { name: "부산기사님", phoneNumber: "+8201034567890", memo: "부산 배차" },
+  { name: "강동현", phoneNumber: "+8201095337464", memo: null },
 ];
 
 async function main() {
