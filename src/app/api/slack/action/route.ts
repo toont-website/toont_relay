@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { parseSlackRequest } from "@/lib/slack/verify";
 import { handleSmsSendSubmission } from "@/lib/slack/actions/sms-send";
+import { handleReplySms, handleRetrySms } from "@/lib/slack/actions/reply-sms";
 
 export async function POST(request: NextRequest) {
   const result = await parseSlackRequest(request);
@@ -14,6 +15,18 @@ export async function POST(request: NextRequest) {
     if (callbackId === "sms_send_modal") {
       const response = await handleSmsSendSubmission(payload);
       if (response) return NextResponse.json(response);
+      return new NextResponse(null, { status: 200 });
+    }
+  }
+
+  if (payload.type === "block_actions") {
+    const actionId = payload.actions?.[0]?.action_id;
+    if (actionId === "reply_sms") {
+      await handleReplySms(payload);
+      return new NextResponse(null, { status: 200 });
+    }
+    if (actionId === "retry_sms") {
+      await handleRetrySms(payload);
       return new NextResponse(null, { status: 200 });
     }
   }
