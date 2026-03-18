@@ -27,7 +27,7 @@ export async function GET() {
 
   try {
     const smsGatewayUrl = process.env.SMS_GATEWAY_URL ?? "http://sms-gateway:3080";
-    const res = await fetch(`${smsGatewayUrl}/api/v1/health`, {
+    const res = await fetch(`${smsGatewayUrl}/health`, {
       signal: AbortSignal.timeout(3000),
     });
     if (res.ok) checks.smsGateway = "ok";
