@@ -28,7 +28,7 @@ export function verifySlackSignature(
 
 export async function parseSlackRequest(
   request: NextRequest
-): Promise<{ body: string; params: URLSearchParams; payload?: unknown } | NextResponse> {
+): Promise<{ body: string; params: URLSearchParams; payload?: any } | NextResponse> {
   const retryNum = request.headers.get("x-slack-retry-num");
   if (retryNum && Number(retryNum) > 0) {
     return NextResponse.json({ ok: true });
