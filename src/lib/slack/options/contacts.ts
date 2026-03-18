@@ -10,16 +10,23 @@ export async function searchContacts(query: string) {
     return { options: [] };
   }
 
-  const contacts = await prisma.contact.findMany({
-    where: {
-      OR: [
-        { name: { contains: query } },
-        { phoneNumber: { contains: query } },
-      ],
-    },
-    take: 10,
-    orderBy: { name: "asc" },
-  });
+  let contacts;
+  try {
+    contacts = await prisma.contact.findMany({
+      where: {
+        OR: [
+          { name: { contains: query } },
+          { phoneNumber: { contains: query } },
+        ],
+      },
+      take: 10,
+      orderBy: { name: "asc" },
+    });
+    console.log(`[contacts] query="${query}" found=${contacts.length}`);
+  } catch (e) {
+    console.error("[contacts] DB error:", e);
+    contacts = [];
+  }
 
   const options = contacts.map((c) => ({
     text: { type: "plain_text" as const, text: `${c.name} (${formatPhoneNumber(c.phoneNumber)})` },
