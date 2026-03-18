@@ -11,9 +11,7 @@ const globalForPrisma = globalThis as unknown as {
  */
 function getPrismaClient(): PrismaClient {
   if (!globalForPrisma.prisma) {
-    globalForPrisma.prisma = new PrismaClient({
-      datasourceUrl: process.env.DATABASE_URL,
-    });
+    globalForPrisma.prisma = new PrismaClient();
   }
   return globalForPrisma.prisma;
 }

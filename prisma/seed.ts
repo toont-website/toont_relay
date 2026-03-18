@@ -1,8 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 
-const prisma = new PrismaClient({
-  datasourceUrl: process.env.DATABASE_URL,
-});
+const prisma = new PrismaClient();
 
 const contacts = [
   { name: "강동현", phoneNumber: "+8201095337464", memo: null },
