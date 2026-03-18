@@ -1,0 +1,37 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model Contact {
+  id          String       @id @default(cuid())
+  name        String
+  phoneNumber String       @unique // E.164: +821012345678
+  memo        String?
+  messages    MessageLog[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([name])
+  @@index([phoneNumber])
+}
+
+model MessageLog {
+  id             String   @id @default(cuid())
+  direction      String   // "inbound" | "outbound"
+  phoneNumber    String   // E.164
+  message        String   @db.Text
+  status         String   // "sent" | "delivered" | "failed" | "received"
+  slackActionId  String?  @unique // 중복 전송 방지
+  slackMessageTs String?  // 슬랙 메시지 ts
+  contact        Contact? @relation(fields: [contactId], references: [id])
+  contactId      String?
+  createdAt      DateTime @default(now())
+
+  @@index([phoneNumber])
+  @@index([direction])
+  @@index([createdAt])
+}
