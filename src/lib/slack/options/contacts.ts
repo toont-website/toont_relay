@@ -10,7 +10,7 @@ export async function searchContacts(query: string) {
     return { options: [] };
   }
 
-  let contacts;
+  let contacts: { id: string; name: string; phoneNumber: string; memo: string | null }[] = [];
   try {
     contacts = await prisma.contact.findMany({
       where: {
