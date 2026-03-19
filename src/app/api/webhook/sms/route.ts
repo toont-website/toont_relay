@@ -22,45 +22,44 @@ export async function POST(request: NextRequest) {
   }
 
   const event: SmsGatewayWebhookEvent = JSON.parse(body);
-  logger.debug({ eventType: event.event, payload: event.payload, webhookId: event.webhookId }, "SMS 웹훅 수신");
+  logger.info({ eventType: event.event, payloadKeys: Object.keys(event.payload ?? {}), webhookId: event.webhookId }, "SMS 웹훅 수신");
 
   if (event.event !== "sms:received") {
     return NextResponse.json({ ok: true });
   }
 
   const { phoneNumber: rawPhone, message, receivedAt } = event.payload;
-  const messageId = event.payload.id ?? event.webhookId;
   const phoneNumber = normalizePhoneNumber(rawPhone) ?? rawPhone;
 
-  // messageId가 없으면 phoneNumber + receivedAt 조합으로 dedup 키 생성
-  const dedupKey = messageId
-    ? `sms_received_${messageId}`
-    : `sms_received_${phoneNumber}_${receivedAt}`;
+  // 30초 내 동일 번호 + 동일 내용이면 중복으로 판단
+  const recentDuplicate = await prisma.messageLog.findFirst({
+    where: {
+      direction: "inbound",
+      phoneNumber,
+      message,
+      createdAt: { gte: new Date(Date.now() - 30_000) },
+    },
+  });
+
+  if (recentDuplicate) {
+    logger.info({ phoneNumber }, "SMS 수신 중복 웹훅 무시");
+    return NextResponse.json({ ok: true });
+  }
 
   const contact = await prisma.contact.findUnique({ where: { phoneNumber } });
 
   const activeThreadTs = await findActiveThread(phoneNumber);
   const isNewThread = activeThreadTs === null;
 
-  let log;
-  try {
-    log = await prisma.messageLog.create({
-      data: {
-        direction: "inbound",
-        phoneNumber,
-        message,
-        status: "received",
-        slackActionId: dedupKey,
-        contactId: contact?.id,
-      },
-    });
-  } catch (error: any) {
-    if (error?.code === "P2002") {
-      logger.info({ messageId, dedupKey }, "SMS 수신 중복 웹훅 무시");
-      return NextResponse.json({ ok: true });
-    }
-    throw error;
-  }
+  const log = await prisma.messageLog.create({
+    data: {
+      direction: "inbound",
+      phoneNumber,
+      message,
+      status: "received",
+      contactId: contact?.id,
+    },
+  });
 
   const env = getEnv();
   const slackClient = getSlackClient();
