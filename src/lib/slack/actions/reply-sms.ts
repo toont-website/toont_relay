@@ -8,8 +8,18 @@ import { logger } from "@/lib/logger";
 
 export async function handleReplySms(payload: any) {
   const action = payload.actions?.[0];
-  const phoneNumber = action?.value;
   const triggerId = payload.trigger_id;
+
+  let phoneNumber: string;
+  let threadTs: string | null = null;
+  try {
+    const parsed = JSON.parse(action?.value ?? "");
+    phoneNumber = parsed.phoneNumber;
+    threadTs = parsed.threadTs ?? null;
+  } catch {
+    phoneNumber = action?.value;
+  }
+
   if (!phoneNumber || !triggerId) return;
 
   const contact = await prisma.contact.findUnique({ where: { phoneNumber } });
@@ -17,13 +27,49 @@ export async function handleReplySms(payload: any) {
     ? `${contact.name} (${formatPhoneNumber(phoneNumber)})`
     : formatPhoneNumber(phoneNumber);
 
+  const recentMessages = await prisma.messageLog.findMany({
+    where: { phoneNumber },
+    orderBy: { createdAt: "desc" },
+    take: 3,
+  });
+
+  const contextBlocks: any[] = [];
+  if (recentMessages.length > 0) {
+    contextBlocks.push({
+      type: "section",
+      text: { type: "mrkdwn", text: "*최근 대화*" },
+    });
+
+    for (const msg of [...recentMessages].reverse()) {
+      const time = msg.createdAt.toLocaleString("ko-KR", {
+        timeZone: "Asia/Seoul",
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      });
+      const icon = msg.direction === "inbound" ? "📩 고객" : "📤 발신";
+      const preview = msg.message.length > 50
+        ? msg.message.substring(0, 50) + "..."
+        : msg.message;
+
+      contextBlocks.push({
+        type: "context",
+        elements: [
+          { type: "mrkdwn", text: `${icon} (${time})\n"${preview}"` },
+        ],
+      });
+    }
+
+    contextBlocks.push({ type: "divider" });
+  }
+
   const slackClient = getSlackClient();
   await slackClient.views.open({
     trigger_id: triggerId,
     view: {
       type: "modal",
       callback_id: "sms_send_modal",
-      private_metadata: JSON.stringify({ phoneNumber }),
+      private_metadata: JSON.stringify({ phoneNumber, threadTs }),
       title: { type: "plain_text", text: "답장하기" },
       submit: { type: "plain_text", text: "전송" },
       blocks: [
@@ -31,6 +77,7 @@ export async function handleReplySms(payload: any) {
           type: "section",
           text: { type: "mrkdwn", text: `*받는 사람:* ${displayName}` },
         },
+        ...contextBlocks,
         {
           type: "input",
           block_id: "message_block",
@@ -50,7 +97,7 @@ export async function handleRetrySms(payload: any) {
   const action = payload.actions?.[0];
   if (!action?.value) return;
 
-  const { phoneNumber, message } = JSON.parse(action.value);
+  const { phoneNumber, message, threadTs } = JSON.parse(action.value);
   const normalized = normalizePhoneNumber(phoneNumber);
   if (!normalized) return;
 
@@ -63,7 +110,14 @@ export async function handleRetrySms(payload: any) {
     const contact = await prisma.contact.findUnique({ where: { phoneNumber: normalized } });
 
     await prisma.messageLog.create({
-      data: { direction: "outbound", phoneNumber: normalized, message, status: "sent", contactId: contact?.id },
+      data: {
+        direction: "outbound",
+        phoneNumber: normalized,
+        message,
+        status: "sent",
+        contactId: contact?.id,
+        slackThreadTs: threadTs ?? undefined,
+      },
     });
 
     const recipientName = contact
@@ -72,6 +126,7 @@ export async function handleRetrySms(payload: any) {
 
     await slackClient.chat.postMessage({
       channel: env.SLACK_CHANNEL_CS_SMS,
+      thread_ts: threadTs ?? undefined,
       ...buildSmsSentMessage({
         recipientName,
         phoneNumber: normalized,
