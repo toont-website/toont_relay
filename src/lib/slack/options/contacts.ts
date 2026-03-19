@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db/prisma";
 import { formatPhoneNumber, normalizePhoneNumber } from "@/lib/utils/phone";
+import { logger } from "@/lib/logger";
 
 const DIRECT_INPUT_VALUE = "__direct_input__";
 
@@ -22,9 +23,9 @@ export async function searchContacts(query: string) {
       take: 10,
       orderBy: { name: "asc" },
     });
-    console.log(`[contacts] query="${query}" found=${contacts.length}`);
+    logger.debug({ query, count: contacts.length }, "연락처 검색");
   } catch (e) {
-    console.error("[contacts] DB error:", e);
+    logger.error({ error: e }, "연락처 검색 DB 에러");
     contacts = [];
   }
 
