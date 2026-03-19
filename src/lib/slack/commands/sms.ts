@@ -5,6 +5,7 @@ import { normalizePhoneNumber, formatPhoneNumber } from "@/lib/utils/phone";
 import { getSmsGatewayClient } from "@/lib/sms-gateway/client";
 import { buildSmsSentMessage, buildSmsFailedMessage } from "../messages/sms-sent";
 import { logger } from "@/lib/logger";
+import { findActiveThread } from "@/lib/slack/thread/find-thread";
 
 /**
  * /sms 커맨드 핸들러
@@ -118,18 +119,11 @@ async function sendInlineSms(phoneNumber: string, message: string, userId: strin
     const smsClient = getSmsGatewayClient();
     const result = await smsClient.sendSMS(phoneNumber, message);
 
-    await prisma.messageLog.create({
-      data: {
-        direction: "outbound",
-        phoneNumber,
-        message,
-        status: "sent",
-        contactId: contact?.id,
-      },
-    });
+    const activeThreadTs = await findActiveThread(phoneNumber);
 
-    await slackClient.chat.postMessage({
+    const postResult = await slackClient.chat.postMessage({
       channel: env.SLACK_CHANNEL_CS_SMS,
+      thread_ts: activeThreadTs ?? undefined,
       ...buildSmsSentMessage({
         recipientName,
         phoneNumber,
@@ -139,19 +133,34 @@ async function sendInlineSms(phoneNumber: string, message: string, userId: strin
       }),
     });
 
+    await prisma.messageLog.create({
+      data: {
+        direction: "outbound",
+        phoneNumber,
+        message,
+        status: "sent",
+        contactId: contact?.id,
+        slackThreadTs: activeThreadTs ?? postResult?.ts ?? undefined,
+      },
+    });
+
     logger.info({ phoneNumber, gatewayId: result.id }, "SMS 인라인 발신 성공");
     return { text: `SMS 발송 완료: ${recipientName}` };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : "알 수 없는 에러";
     logger.error({ phoneNumber, error: errorMsg }, "SMS 인라인 발신 실패");
 
+    const activeThreadTs = await findActiveThread(phoneNumber).catch(() => null);
+
     await slackClient.chat.postMessage({
       channel: env.SLACK_CHANNEL_CS_SMS,
+      thread_ts: activeThreadTs ?? undefined,
       ...buildSmsFailedMessage({
         recipientName,
         phoneNumber,
         message,
         error: errorMsg,
+        threadTs: activeThreadTs ?? undefined,
       }),
     });
 
