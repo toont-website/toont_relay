@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { parseSlackRequest } from "@/lib/slack/verify";
 import { validateSmsSend, executeSmsSend } from "@/lib/slack/actions/sms-send";
 import { handleReplySms, handleRetrySms } from "@/lib/slack/actions/reply-sms";
+import { handleRegisterContact, handleRegisterContactSubmission } from "@/lib/slack/actions/register-contact";
 
 export async function POST(request: NextRequest) {
   const result = await parseSlackRequest(request);
@@ -13,6 +14,11 @@ export async function POST(request: NextRequest) {
 
   if (payload.type === "view_submission") {
     const callbackId = payload.view?.callback_id;
+    if (callbackId === "register_contact_modal") {
+      const response = await handleRegisterContactSubmission(payload);
+      if (response) return NextResponse.json(response);
+      return new NextResponse(null, { status: 200 });
+    }
     if (callbackId === "sms_send_modal") {
       const result = await validateSmsSend(payload);
       if ("response_action" in result) {
@@ -27,6 +33,10 @@ export async function POST(request: NextRequest) {
 
   if (payload.type === "block_actions") {
     const actionId = payload.actions?.[0]?.action_id;
+    if (actionId === "register_contact") {
+      await handleRegisterContact(payload);
+      return new NextResponse(null, { status: 200 });
+    }
     if (actionId === "reply_sms") {
       await handleReplySms(payload);
       return new NextResponse(null, { status: 200 });

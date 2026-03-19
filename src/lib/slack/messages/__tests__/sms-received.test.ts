@@ -8,10 +8,12 @@ describe("buildSmsReceivedMessage", () => {
       phoneNumber: "+821098765432",
       message: "목대 가능합니다",
       receivedAt: "2026-03-18T14:30:00Z",
+      isNewThread: true,
     });
     expect(result.text).toContain("김철수");
-    expect(result.blocks[0].text.text).toContain("김철수");
-    expect(result.blocks[0].text.text).toContain("010-9876-5432");
+    const blocks = result.attachments[0].blocks;
+    expect(blocks[0].text.text).toContain("김철수");
+    expect(blocks[0].text.text).toContain("010-9876-5432");
   });
 
   it("연락처 미매칭 시 번호만 표시", () => {
@@ -20,6 +22,7 @@ describe("buildSmsReceivedMessage", () => {
       phoneNumber: "+821011112222",
       message: "테스트",
       receivedAt: "2026-03-18T14:30:00Z",
+      isNewThread: true,
     });
     expect(result.text).toContain("010-1111-2222");
   });
@@ -30,8 +33,10 @@ describe("buildSmsReceivedMessage", () => {
       phoneNumber: "+821012345678",
       message: "테스트",
       receivedAt: "2026-03-18T14:30:00Z",
+      isNewThread: true,
     });
-    const actionsBlock = result.blocks.find((b: any) => b.type === "actions");
+    const blocks = result.attachments[0].blocks;
+    const actionsBlock = blocks.find((b: any) => b.type === "actions");
     expect(actionsBlock).toBeTruthy();
     expect(actionsBlock!.elements[0].action_id).toBe("reply_sms");
   });

@@ -11,9 +11,10 @@ describe("buildSmsSentMessage", () => {
       gatewayMessageId: "msg-456",
     });
 
-    expect(result.text).toBe("SMS 발신: 김철수 (010-1234-5678)");
-    expect(result.blocks).toHaveLength(4);
-    expect(result.blocks[0].text.text).toContain("<@U123>");
-    expect(result.blocks[2].text.text).toBe("내일 배송 예정입니다");
+    expect(result.text).toBe("SMS 발신 → 김철수 (010-1234-5678)");
+    const blocks = result.attachments[0].blocks;
+    expect(blocks).toHaveLength(4);
+    expect(blocks[0].text.text).toContain("<@U123>");
+    expect(blocks[2].text.text).toBe("내일 배송 예정입니다");
   });
 });
