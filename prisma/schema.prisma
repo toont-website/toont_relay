@@ -28,6 +28,7 @@ model MessageLog {
   status         String   // "sent" | "delivered" | "failed" | "received"
   slackActionId  String?  @unique // 중복 전송 방지
   slackMessageTs String?  // 슬랙 메시지 ts
+  slackThreadTs  String?  // 스레드 부모 ts
   contact        Contact? @relation(fields: [contactId], references: [id])
   contactId      String?
   createdAt      DateTime @default(now())
@@ -35,4 +36,5 @@ model MessageLog {
   @@index([phoneNumber])
   @@index([direction])
   @@index([createdAt])
+  @@index([phoneNumber, slackThreadTs, createdAt])
 }
