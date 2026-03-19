@@ -78,10 +78,10 @@ async function openSmsModal(triggerId: string) {
       close: { type: "plain_text", text: "취소" },
       blocks: [
         {
-          type: "input",
+          type: "section",
           block_id: "recipient_block",
-          label: { type: "plain_text", text: "받는 사람" },
-          element: {
+          text: { type: "mrkdwn", text: "*받는 사람*" },
+          accessory: {
             type: "external_select",
             action_id: "contact_select",
             placeholder: { type: "plain_text", text: "이름 또는 번호 검색..." },
@@ -104,6 +104,101 @@ async function openSmsModal(triggerId: string) {
   });
 
   return null; // 모달이니까 슬랙에 텍스트 응답 안 함
+}
+
+/**
+ * 모달에서 연락처 선택 시 대화 내역을 동적으로 추가
+ */
+export async function handleContactSelect(payload: any) {
+  const selectedOption = payload.actions?.[0]?.selected_option;
+  if (!selectedOption) return;
+
+  const phoneNumber = selectedOption.value;
+  const displayText = selectedOption.text?.text ?? phoneNumber;
+  const viewId = payload.view?.id;
+  if (!viewId) return;
+
+  const contact = await prisma.contact.findUnique({ where: { phoneNumber } });
+
+  // 최근 5개 대화 조회
+  const recentMessages = await prisma.messageLog.findMany({
+    where: { phoneNumber },
+    orderBy: { createdAt: "desc" },
+    take: 5,
+  });
+
+  // 스레드 검색
+  const activeThreadTs = await findActiveThread(phoneNumber);
+
+  // 대화 내역 블록 생성
+  const historyBlocks: any[] = [];
+  if (recentMessages.length > 0) {
+    historyBlocks.push({ type: "divider" });
+    historyBlocks.push({
+      type: "section",
+      text: { type: "mrkdwn", text: `*📋 ${contact?.name ?? formatPhoneNumber(phoneNumber)} 최근 대화*` },
+    });
+
+    for (const msg of [...recentMessages].reverse()) {
+      const time = msg.createdAt.toLocaleString("ko-KR", {
+        timeZone: "Asia/Seoul",
+        month: "numeric",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      });
+      const icon = msg.direction === "inbound" ? "📩 고객" : "📤 발신";
+      const preview = msg.message.length > 60
+        ? msg.message.substring(0, 60) + "..."
+        : msg.message;
+
+      historyBlocks.push({
+        type: "context",
+        elements: [
+          { type: "mrkdwn", text: `${icon} (${time})\n"${preview}"` },
+        ],
+      });
+    }
+  }
+
+  const client = getSlackClient();
+  await client.views.update({
+    view_id: viewId,
+    view: {
+      type: "modal",
+      callback_id: "sms_send_modal",
+      private_metadata: JSON.stringify({ phoneNumber, threadTs: activeThreadTs }),
+      title: { type: "plain_text", text: "문자 보내기" },
+      submit: { type: "plain_text", text: "전송" },
+      close: { type: "plain_text", text: "취소" },
+      blocks: [
+        {
+          type: "section",
+          block_id: "recipient_block",
+          text: { type: "mrkdwn", text: `*받는 사람:* ${displayText}` },
+          accessory: {
+            type: "external_select",
+            action_id: "contact_select",
+            placeholder: { type: "plain_text", text: "변경..." },
+            min_query_length: 1,
+          },
+        },
+        ...historyBlocks,
+        {
+          type: "input",
+          block_id: "message_block",
+          label: { type: "plain_text", text: "내용" },
+          element: {
+            type: "plain_text_input",
+            action_id: "message_input",
+            multiline: true,
+            placeholder: { type: "plain_text", text: "문자 내용을 입력하세요" },
+          },
+        },
+      ],
+    },
+  });
 }
 
 async function sendInlineSms(phoneNumber: string, message: string, userId: string) {

@@ -4,6 +4,7 @@ import { parseSlackRequest } from "@/lib/slack/verify";
 import { validateSmsSend, executeSmsSend } from "@/lib/slack/actions/sms-send";
 import { handleReplySms, handleRetrySms } from "@/lib/slack/actions/reply-sms";
 import { handleRegisterContact, handleRegisterContactSubmission } from "@/lib/slack/actions/register-contact";
+import { handleContactSelect } from "@/lib/slack/commands/sms";
 
 export async function POST(request: NextRequest) {
   const result = await parseSlackRequest(request);
@@ -35,6 +36,10 @@ export async function POST(request: NextRequest) {
     const actionId = payload.actions?.[0]?.action_id;
     if (actionId === "register_contact") {
       await handleRegisterContact(payload);
+      return new NextResponse(null, { status: 200 });
+    }
+    if (actionId === "contact_select") {
+      await handleContactSelect(payload);
       return new NextResponse(null, { status: 200 });
     }
     if (actionId === "reply_sms") {
