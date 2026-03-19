@@ -1,8 +1,0 @@
-database:
-  dialect: sqlite
-  path: /data/sms-gateway.db
-gateway:
-  private_token: e40170704359802f7d153fcc71e036d2be97c99ea580023e56c3d8822a852560
-  webhooks:
-    - url: http://app:3000/api/webhook/sms
-      event: sms:received
