@@ -1,68 +1,78 @@
+import { formatPhoneNumber } from "@/lib/utils/phone";
+
 interface SmsSentMessageParams {
   recipientName: string;
   phoneNumber: string;
   message: string;
   senderUserId: string;
-  gatewayMessageId: string;
+  gatewayMessageId?: string;
 }
 
 export function buildSmsSentMessage(params: SmsSentMessageParams) {
+  const { recipientName, phoneNumber, message, senderUserId } = params;
+
+  const time = new Date().toLocaleString("ko-KR", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+
+  const blocks: any[] = [
+    {
+      type: "section",
+      text: { type: "mrkdwn", text: `*📤 발신* — <@${senderUserId}> → ${recipientName}` },
+    },
+    { type: "divider" },
+    { type: "section", text: { type: "mrkdwn", text: message } },
+    { type: "context", elements: [{ type: "mrkdwn", text: `📅 ${time}` }] },
+  ];
+
   return {
-    text: `SMS 발신: ${params.recipientName}`,
-    blocks: [
-      {
-        type: "section" as const,
-        text: {
-          type: "mrkdwn" as const,
-          text: `*SMS 발신*\n수신: ${params.recipientName}\n발신자: <@${params.senderUserId}>`,
-        },
-      },
-      { type: "divider" as const },
-      {
-        type: "section" as const,
-        text: { type: "mrkdwn" as const, text: params.message },
-      },
-      {
-        type: "context" as const,
-        elements: [
-          {
-            type: "mrkdwn" as const,
-            text: `ID: ${params.gatewayMessageId} | ${new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })}`,
-          },
-        ],
-      },
-    ],
+    text: `SMS 발신 → ${recipientName}`,
+    attachments: [{ color: "#2196F3", blocks }],
   };
 }
 
-export function buildSmsFailedMessage(params: {
+interface SmsFailedMessageParams {
   recipientName: string;
   phoneNumber: string;
   message: string;
   error: string;
-}) {
-  return {
-    text: `SMS 발송 실패: ${params.recipientName}`,
-    blocks: [
-      {
-        type: "section" as const,
-        text: {
-          type: "mrkdwn" as const,
-          text: `*SMS 발송 실패*\n수신: ${params.recipientName}\n에러: ${params.error}`,
+  threadTs?: string;
+}
+
+export function buildSmsFailedMessage(params: SmsFailedMessageParams) {
+  const { recipientName, phoneNumber, message, error, threadTs } = params;
+
+  const blocks: any[] = [
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `*❌ 발송 실패* — ${recipientName} (${formatPhoneNumber(phoneNumber)})\n에러: ${error}`,
+      },
+    },
+    { type: "section", text: { type: "mrkdwn", text: message } },
+    {
+      type: "actions",
+      elements: [
+        {
+          type: "button",
+          text: { type: "plain_text", text: "재시도" },
+          action_id: "retry_sms",
+          style: "danger",
+          value: JSON.stringify({ phoneNumber, message, threadTs: threadTs ?? null }),
         },
-      },
-      {
-        type: "actions" as const,
-        elements: [
-          {
-            type: "button" as const,
-            text: { type: "plain_text" as const, text: "재시도" },
-            action_id: "retry_sms",
-            value: JSON.stringify({ phoneNumber: params.phoneNumber, message: params.message }),
-            style: "danger" as const,
-          },
-        ],
-      },
-    ],
+      ],
+    },
+  ];
+
+  return {
+    text: `SMS 발송 실패 — ${recipientName}`,
+    attachments: [{ color: "#FF3B30", blocks }],
   };
 }
