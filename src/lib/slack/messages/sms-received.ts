@@ -5,39 +5,65 @@ interface SmsReceivedMessageParams {
   phoneNumber: string;
   message: string;
   receivedAt: string;
+  threadTs?: string;
+  isNewThread: boolean;
 }
 
 export function buildSmsReceivedMessage(params: SmsReceivedMessageParams) {
-  const displayName = params.senderName
-    ? `${params.senderName} (${formatPhoneNumber(params.phoneNumber)})`
-    : formatPhoneNumber(params.phoneNumber);
+  const { senderName, phoneNumber, message, receivedAt, threadTs, isNewThread } = params;
+  const formattedPhone = formatPhoneNumber(phoneNumber);
 
-  const time = new Date(params.receivedAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" });
+  const isRegistered = senderName !== null;
+  const displayName = isRegistered
+    ? `*${senderName}* (${formattedPhone})`
+    : `*⚠️ 미등록 번호* (${formattedPhone})`;
+
+  const headerText = isNewThread
+    ? `*📩 새 문의* — ${displayName}`
+    : `*📩 고객*${isRegistered ? ` — ${senderName}` : ""}`;
+
+  const color = isRegistered ? "#36C759" : "#FFB800";
+
+  const time = new Date(receivedAt).toLocaleString("ko-KR", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+
+  const blocks: any[] = [
+    { type: "section", text: { type: "mrkdwn", text: headerText } },
+    { type: "divider" },
+    { type: "section", text: { type: "mrkdwn", text: message } },
+    { type: "context", elements: [{ type: "mrkdwn", text: `📅 ${time}` }] },
+  ];
+
+  const actions: any[] = [
+    {
+      type: "button",
+      text: { type: "plain_text", text: "답장하기" },
+      action_id: "reply_sms",
+      style: "primary",
+      value: JSON.stringify({ phoneNumber, threadTs: threadTs ?? null }),
+    },
+  ];
+
+  if (!isRegistered) {
+    actions.push({
+      type: "button",
+      text: { type: "plain_text", text: "연락처 등록" },
+      action_id: "register_contact",
+      value: JSON.stringify({ phoneNumber }),
+    });
+  }
+
+  blocks.push({ type: "actions", elements: actions });
 
   return {
-    text: `SMS 수신: ${displayName}`,
-    blocks: [
-      {
-        type: "section" as const,
-        text: { type: "mrkdwn" as const, text: `*SMS 수신*\n발신: ${displayName}\n시간: ${time}` },
-      },
-      { type: "divider" as const },
-      {
-        type: "section" as const,
-        text: { type: "mrkdwn" as const, text: params.message },
-      },
-      {
-        type: "actions" as const,
-        elements: [
-          {
-            type: "button" as const,
-            text: { type: "plain_text" as const, text: "답장하기" },
-            action_id: "reply_sms",
-            value: params.phoneNumber,
-            style: "primary" as const,
-          },
-        ],
-      },
-    ],
+    text: `SMS 수신 — ${senderName ?? formattedPhone} (${formattedPhone})`,
+    attachments: [{ color, blocks }],
   };
 }
