@@ -6,7 +6,23 @@ import { normalizePhoneNumber, formatPhoneNumber } from "@/lib/utils/phone";
 import { buildSmsSentMessage, buildSmsFailedMessage } from "../messages/sms-sent";
 import { logger } from "@/lib/logger";
 
-export async function handleSmsSendSubmission(payload: any) {
+interface SmsSendValidated {
+  phoneNumber: string;
+  messageText: string;
+  recipientName: string;
+  contactId: string | null;
+  userId: string;
+  slackActionId: string;
+}
+
+interface SmsSendValidationError {
+  response_action: "errors";
+  errors: Record<string, string>;
+}
+
+export async function validateSmsSend(
+  payload: any
+): Promise<SmsSendValidated | SmsSendValidationError> {
   const view = payload.view;
   const userId = payload.user.id;
   const slackActionId = `view_${view.id}`;
@@ -40,6 +56,19 @@ export async function handleSmsSendSubmission(payload: any) {
     ? `${contact.name} (${formatPhoneNumber(phoneNumber)})`
     : formatPhoneNumber(phoneNumber);
 
+  return {
+    phoneNumber,
+    messageText,
+    recipientName,
+    contactId: contact?.id ?? null,
+    userId,
+    slackActionId,
+  };
+}
+
+export async function executeSmsSend(validated: SmsSendValidated): Promise<void> {
+  const { phoneNumber, messageText, recipientName, contactId, userId, slackActionId } = validated;
+
   const env = getEnv();
   const slackClient = getSlackClient();
 
@@ -56,13 +85,13 @@ export async function handleSmsSendSubmission(payload: any) {
           message: messageText,
           status: "sent",
           slackActionId,
-          contactId: contact?.id,
+          contactId: contactId ?? undefined,
         },
       });
     } catch (dbError: any) {
       if (dbError?.code === "P2002") {
         logger.info({ slackActionId }, "중복 전송 방지됨");
-        return null;
+        return;
       }
       throw dbError;
     }
@@ -100,10 +129,8 @@ export async function handleSmsSendSubmission(payload: any) {
         message: messageText,
         status: "failed",
         slackActionId: `${slackActionId}_failed`,
-        contactId: contact?.id,
+        contactId: contactId ?? undefined,
       },
     });
   }
-
-  return null;
 }

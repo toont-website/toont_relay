@@ -1,6 +1,7 @@
+import { after } from "next/server";
 import { NextRequest, NextResponse } from "next/server";
 import { parseSlackRequest } from "@/lib/slack/verify";
-import { handleSmsSendSubmission } from "@/lib/slack/actions/sms-send";
+import { validateSmsSend, executeSmsSend } from "@/lib/slack/actions/sms-send";
 import { handleReplySms, handleRetrySms } from "@/lib/slack/actions/reply-sms";
 
 export async function POST(request: NextRequest) {
@@ -13,8 +14,13 @@ export async function POST(request: NextRequest) {
   if (payload.type === "view_submission") {
     const callbackId = payload.view?.callback_id;
     if (callbackId === "sms_send_modal") {
-      const response = await handleSmsSendSubmission(payload);
-      if (response) return NextResponse.json(response);
+      const result = await validateSmsSend(payload);
+      if ("response_action" in result) {
+        return NextResponse.json(result);
+      }
+      after(async () => {
+        await executeSmsSend(result);
+      });
       return new NextResponse(null, { status: 200 });
     }
   }
