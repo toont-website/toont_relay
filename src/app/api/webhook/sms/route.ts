@@ -12,10 +12,12 @@ export async function POST(request: NextRequest) {
   const body = await request.text();
 
   const signature = request.headers.get("x-signature") ?? "";
+  const timestamp = request.headers.get("x-timestamp") ?? "";
   const smsClient = getSmsGatewayClient();
 
-  if (signature && !smsClient.verifyWebhookSignature(signature, body)) {
-    logger.warn({ signature }, "SMS 웹훅 서명 검증 실패 — 임시 통과");
+  if (!smsClient.verifyWebhookSignature(signature, body, timestamp)) {
+    logger.warn({ signature: signature.substring(0, 8) }, "SMS 웹훅 서명 검증 실패");
+    return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
   const event: SmsGatewayWebhookEvent = JSON.parse(body);

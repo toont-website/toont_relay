@@ -69,10 +69,14 @@ export class SmsGatewayClient {
     return response.json();
   }
 
-  verifyWebhookSignature(signature: string, body: string): boolean {
+  verifyWebhookSignature(signature: string, body: string, timestamp: string): boolean {
+    if (!signature || !timestamp) {
+      return false;
+    }
+
     try {
       const expected = createHmac("sha256", this.webhookSecret)
-        .update(body)
+        .update(body + timestamp)
         .digest("hex");
 
       const sigBuf = Buffer.from(signature, "hex");

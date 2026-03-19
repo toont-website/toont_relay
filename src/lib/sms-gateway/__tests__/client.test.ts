@@ -102,18 +102,29 @@ describe("SmsGatewayClient", () => {
   describe("verifyWebhookSignature", () => {
     it("유효한 서명 -> true", async () => {
       const body = '{"event":"sms:received"}';
+      const timestamp = "1742380800";
       const crypto = await import("node:crypto");
       const expectedSig = crypto
         .createHmac("sha256", "test-secret")
-        .update(body)
+        .update(body + timestamp)
         .digest("hex");
 
-      const result = client.verifyWebhookSignature(expectedSig, body);
+      const result = client.verifyWebhookSignature(expectedSig, body, timestamp);
       expect(result).toBe(true);
     });
 
     it("잘못된 서명 -> false", () => {
-      const result = client.verifyWebhookSignature("invalid-sig", "body");
+      const result = client.verifyWebhookSignature("deadbeef".repeat(8), "body", "1742380800");
+      expect(result).toBe(false);
+    });
+
+    it("서명 없으면 -> false", () => {
+      const result = client.verifyWebhookSignature("", "body", "1742380800");
+      expect(result).toBe(false);
+    });
+
+    it("타임스탬프 없으면 -> false", () => {
+      const result = client.verifyWebhookSignature("deadbeef".repeat(8), "body", "");
       expect(result).toBe(false);
     });
   });
