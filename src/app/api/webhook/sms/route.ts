@@ -7,6 +7,7 @@ import { normalizePhoneNumber } from "@/lib/utils/phone";
 import { buildSmsReceivedMessage } from "@/lib/slack/messages/sms-received";
 import { logger } from "@/lib/logger";
 import type { SmsGatewayWebhookEvent } from "@/lib/sms-gateway/types";
+import { findActiveThread } from "@/lib/slack/thread/find-thread";
 
 export async function POST(request: NextRequest) {
   const body = await request.text();
@@ -38,6 +39,9 @@ export async function POST(request: NextRequest) {
 
   const contact = await prisma.contact.findUnique({ where: { phoneNumber } });
 
+  const activeThreadTs = await findActiveThread(phoneNumber);
+  const isNewThread = activeThreadTs === null;
+
   let log;
   try {
     log = await prisma.messageLog.create({
@@ -66,17 +70,23 @@ export async function POST(request: NextRequest) {
     phoneNumber,
     message,
     receivedAt,
+    threadTs: activeThreadTs ?? undefined,
+    isNewThread,
   });
 
   const postResult = await slackClient.chat.postMessage({
     channel: env.SLACK_CHANNEL_CS_SMS,
+    thread_ts: activeThreadTs ?? undefined,
     ...slackMessage,
   });
 
   if (postResult.ts) {
     await prisma.messageLog.update({
       where: { id: log.id },
-      data: { slackMessageTs: postResult.ts },
+      data: {
+        slackMessageTs: postResult.ts,
+        slackThreadTs: activeThreadTs ?? postResult.ts,
+      },
     });
   }
 
