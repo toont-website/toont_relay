@@ -26,20 +26,30 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
-  const { phoneNumber: rawPhone, message, receivedAt } = event.payload;
+  const { id: messageId, phoneNumber: rawPhone, message, receivedAt } = event.payload;
   const phoneNumber = normalizePhoneNumber(rawPhone) ?? rawPhone;
 
   const contact = await prisma.contact.findUnique({ where: { phoneNumber } });
 
-  const log = await prisma.messageLog.create({
-    data: {
-      direction: "inbound",
-      phoneNumber,
-      message,
-      status: "received",
-      contactId: contact?.id,
-    },
-  });
+  let log;
+  try {
+    log = await prisma.messageLog.create({
+      data: {
+        direction: "inbound",
+        phoneNumber,
+        message,
+        status: "received",
+        slackActionId: `sms_received_${messageId}`,
+        contactId: contact?.id,
+      },
+    });
+  } catch (error: any) {
+    if (error?.code === "P2002") {
+      logger.info({ messageId }, "SMS 수신 중복 웹훅 무시");
+      return NextResponse.json({ ok: true });
+    }
+    throw error;
+  }
 
   const env = getEnv();
   const slackClient = getSlackClient();
