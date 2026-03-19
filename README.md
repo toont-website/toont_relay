@@ -50,16 +50,19 @@ APP_URL=https://relay.toont.co.kr
 
 1. CS폰에서 플레이스토어 → **"SMS Gateway"** (capcom6) 설치
 2. 앱 → Settings:
-   - Server URL: `https://relay.toont.co.kr/sms-gateway`
-   - Private Token: `.env`의 `ASG_GATEWAY_PRIVATE_TOKEN` 값
-3. Start 버튼 → 서버 연결
-4. 앱 화면에 표시되는 **Username / Password** 확인
-5. `.env`에 입력:
+   - **Server URL:** `https://relay.toont.co.kr/sms-gateway`
+   - **Mode:** `Cloud Server` (Local Server 아님!)
+   - **Private Token:** `.env`의 `ASG_GATEWAY_PRIVATE_TOKEN` 값
+3. 앱 → 메시지 설정에서 **RCS 비활성화**
+   - RCS가 켜져있으면 일부 메시지가 SMS 대신 RCS로 가서 Gateway에 안 잡힘
+4. Start 버튼 → 서버 연결
+5. 앱 화면에 표시되는 **Username / Password** 확인
+6. `.env`에 입력:
    ```
    SMS_GATEWAY_USERNAME=표시된_유저네임
    SMS_GATEWAY_PASSWORD=표시된_패스워드
    ```
-6. `docker compose restart app`
+7. `docker compose restart app`
 
 ### 크레덴셜 유지 조건
 
@@ -117,6 +120,21 @@ docker compose restart app # 앱만 재시작
 cd ~/toont_replay
 git pull
 docker compose up -d --build
+```
+
+### 설정 변경 후 재시작
+
+docker-compose.yml이나 config를 변경한 경우 `--build`만으론 반영 안 됨:
+
+```bash
+# config 변경 시 (sms-gateway 설정 등)
+docker compose up -d --force-recreate
+
+# 코드 변경 시 (Dockerfile 관련)
+docker compose up -d --build
+
+# 둘 다 변경 시
+docker compose up -d --build --force-recreate
 ```
 
 ### DB 직접 접근
