@@ -21,13 +21,20 @@ export async function POST(request: NextRequest) {
   }
 
   const event: SmsGatewayWebhookEvent = JSON.parse(body);
+  logger.debug({ eventType: event.event, payload: event.payload, webhookId: event.webhookId }, "SMS 웹훅 수신");
 
   if (event.event !== "sms:received") {
     return NextResponse.json({ ok: true });
   }
 
-  const { id: messageId, phoneNumber: rawPhone, message, receivedAt } = event.payload;
+  const { phoneNumber: rawPhone, message, receivedAt } = event.payload;
+  const messageId = event.payload.id ?? event.webhookId;
   const phoneNumber = normalizePhoneNumber(rawPhone) ?? rawPhone;
+
+  // messageId가 없으면 phoneNumber + receivedAt 조합으로 dedup 키 생성
+  const dedupKey = messageId
+    ? `sms_received_${messageId}`
+    : `sms_received_${phoneNumber}_${receivedAt}`;
 
   const contact = await prisma.contact.findUnique({ where: { phoneNumber } });
 
@@ -39,13 +46,13 @@ export async function POST(request: NextRequest) {
         phoneNumber,
         message,
         status: "received",
-        slackActionId: `sms_received_${messageId}`,
+        slackActionId: dedupKey,
         contactId: contact?.id,
       },
     });
   } catch (error: any) {
     if (error?.code === "P2002") {
-      logger.info({ messageId }, "SMS 수신 중복 웹훅 무시");
+      logger.info({ messageId, dedupKey }, "SMS 수신 중복 웹훅 무시");
       return NextResponse.json({ ok: true });
     }
     throw error;
