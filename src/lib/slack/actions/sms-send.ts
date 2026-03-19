@@ -13,6 +13,7 @@ interface SmsSendValidated {
   contactId: string | null;
   userId: string;
   slackActionId: string;
+  threadTs: string | null;
 }
 
 interface SmsSendValidationError {
@@ -27,9 +28,17 @@ export async function validateSmsSend(
   const userId = payload.user.id;
   const slackActionId = `view_${view.id}`;
 
-  const recipientValue =
-    view.state?.values?.recipient_block?.contact_select?.selected_option?.value
-    ?? (view.private_metadata ? JSON.parse(view.private_metadata).phoneNumber : null);
+  let recipientValue =
+    view.state?.values?.recipient_block?.contact_select?.selected_option?.value ?? null;
+
+  let threadTs: string | null = null;
+  if (view.private_metadata) {
+    try {
+      const meta = JSON.parse(view.private_metadata);
+      recipientValue = recipientValue ?? meta.phoneNumber;
+      threadTs = meta.threadTs ?? null;
+    } catch { /* ignore */ }
+  }
 
   const messageText = view.state?.values?.message_block?.message_input?.value;
 
@@ -63,11 +72,12 @@ export async function validateSmsSend(
     contactId: contact?.id ?? null,
     userId,
     slackActionId,
+    threadTs,
   };
 }
 
 export async function executeSmsSend(validated: SmsSendValidated): Promise<void> {
-  const { phoneNumber, messageText, recipientName, contactId, userId, slackActionId } = validated;
+  const { phoneNumber, messageText, recipientName, contactId, userId, slackActionId, threadTs } = validated;
 
   const env = getEnv();
   const slackClient = getSlackClient();
@@ -75,6 +85,18 @@ export async function executeSmsSend(validated: SmsSendValidated): Promise<void>
   try {
     const smsClient = getSmsGatewayClient();
     const result = await smsClient.sendSMS(phoneNumber, messageText);
+
+    const postResult = await slackClient.chat.postMessage({
+      channel: env.SLACK_CHANNEL_CS_SMS,
+      thread_ts: threadTs ?? undefined,
+      ...buildSmsSentMessage({
+        recipientName,
+        phoneNumber,
+        message: messageText,
+        senderUserId: userId,
+        gatewayMessageId: result.id,
+      }),
+    });
 
     // DB 기록 — unique constraint로 중복 방지
     try {
@@ -86,6 +108,7 @@ export async function executeSmsSend(validated: SmsSendValidated): Promise<void>
           status: "sent",
           slackActionId,
           contactId: contactId ?? undefined,
+          slackThreadTs: threadTs ?? postResult.ts ?? undefined,
         },
       });
     } catch (dbError: any) {
@@ -96,17 +119,6 @@ export async function executeSmsSend(validated: SmsSendValidated): Promise<void>
       throw dbError;
     }
 
-    await slackClient.chat.postMessage({
-      channel: env.SLACK_CHANNEL_CS_SMS,
-      ...buildSmsSentMessage({
-        recipientName,
-        phoneNumber,
-        message: messageText,
-        senderUserId: userId,
-        gatewayMessageId: result.id,
-      }),
-    });
-
     logger.info({ phoneNumber, gatewayId: result.id }, "SMS 발신 성공");
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : "알 수 없는 에러";
@@ -114,11 +126,13 @@ export async function executeSmsSend(validated: SmsSendValidated): Promise<void>
 
     await slackClient.chat.postMessage({
       channel: env.SLACK_CHANNEL_CS_SMS,
+      thread_ts: threadTs ?? undefined,
       ...buildSmsFailedMessage({
         recipientName,
         phoneNumber,
         message: messageText,
         error: errorMsg,
+        threadTs: threadTs ?? undefined,
       }),
     });
 
@@ -130,6 +144,7 @@ export async function executeSmsSend(validated: SmsSendValidated): Promise<void>
         status: "failed",
         slackActionId: `${slackActionId}_failed`,
         contactId: contactId ?? undefined,
+        slackThreadTs: threadTs ?? undefined,
       },
     });
   }
