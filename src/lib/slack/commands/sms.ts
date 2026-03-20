@@ -130,8 +130,30 @@ export async function handleContactSelect(payload: any) {
   // 스레드 검색
   const activeThreadTs = await findActiveThread(phoneNumber);
 
+  // 최근 담당자 조회
+  const lastAgent = await prisma.messageLog.findFirst({
+    where: {
+      phoneNumber,
+      direction: "outbound",
+      slackUserId: { not: null },
+    },
+    orderBy: { createdAt: "desc" },
+    select: { slackUserId: true },
+  });
+
   // 대화 내역 블록 생성
   const historyBlocks: any[] = [];
+
+  // 담당자 표시
+  if (lastAgent?.slackUserId) {
+    historyBlocks.push({
+      type: "context",
+      elements: [
+        { type: "mrkdwn", text: `👤 최근 담당자: <@${lastAgent.slackUserId}>  ·  문자를 보내면 담당자가 변경돼요` },
+      ],
+    });
+  }
+
   if (recentMessages.length > 0) {
     historyBlocks.push({ type: "divider" });
     historyBlocks.push({
