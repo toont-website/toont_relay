@@ -49,13 +49,14 @@ export async function POST(request: NextRequest) {
   }
 
   const event: CsToolWebhookEvent = JSON.parse(body);
-  logger.info({ event: event.event }, "CS Tool 웹훅 수신");
+  logger.info({ event: event.event, payloadKeys: Object.keys(event.payload ?? {}) }, "CS Tool 웹훅 수신");
 
   const slackClient = getSlackClient();
 
   try {
     if (event.event === "order.created") {
-      const order = event.payload.order;
+      // payload 구조 자동 감지: { order: {...} } 또는 직접 order 객체
+      const order = event.payload.order ?? event.payload;
       const phone = order.phone ? formatPhoneNumber(order.phone) : "-";
 
       await slackClient.chat.postMessage({
@@ -79,7 +80,8 @@ export async function POST(request: NextRequest) {
     }
 
     if (event.event === "order.status_changed") {
-      const { order, changes } = event.payload;
+      const order = event.payload.order ?? event.payload;
+      const changes = event.payload.changes ?? event.payload;
       const prevStatus = changes.previousStageName ?? changes.previousStatus ?? "-";
       const currStatus = changes.currentStageName ?? changes.currentStatus ?? "-";
 
@@ -104,7 +106,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (event.event === "inventory.low_stock") {
-      const item = event.payload.item;
+      const item = event.payload.item ?? event.payload;
 
       await slackClient.chat.postMessage({
         channel: env.SLACK_CHANNEL_INVENTORY,
