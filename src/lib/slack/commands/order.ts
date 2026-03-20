@@ -57,15 +57,29 @@ export async function handleOrderCommand(text: string) {
       const phone = order.phone ? displayPhoneNumber(order.phone) : "-";
       const stage = order.currentStageName ?? statusDisplayMap[order.status] ?? order.status ?? "-";
       const date = new Date(order.createdAt).toLocaleDateString("ko-KR");
-      const due = order.dueDate ? `납기 ${order.dueDate}` : "";
+      const due = order.dueDate ? order.dueDate : "";
 
-      blocks.push({
-        type: "section",
-        fields: [
-          { type: "mrkdwn", text: `*${order.customerName}*\n${phone}` },
-          { type: "mrkdwn", text: `${order.itemDescription} x${order.quantity}\n${stage}${due ? ` · ${due}` : ""} · _${date}_` },
-        ],
-      });
+      blocks.push(
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `*${order.customerName}*  ·  ${phone}\n>${order.itemDescription} x${order.quantity}`,
+          },
+        },
+        {
+          type: "context",
+          elements: [
+            { type: "mrkdwn", text: `📌 ${stage}${due ? `  ·  📅 납기 ${due}` : ""}  ·  등록 ${date}` },
+          ],
+        },
+        { type: "divider" },
+      );
+    }
+
+    // 마지막 divider 제거
+    if (blocks.length > 1 && blocks[blocks.length - 1].type === "divider") {
+      blocks.pop();
     }
 
     return { response_type: "ephemeral" as const, text: " ", blocks };

@@ -70,15 +70,23 @@ export async function handleDashboardCommand() {
           text: { type: "mrkdwn", text: `*${stage}* (${stageOrders.length}건)` },
         });
         for (const order of stageOrders) {
-          const due = order.dueDate ? `납기 ${order.dueDate}` : "";
-          const phone = order.phone ? displayPhoneNumber(order.phone) : "";
+          const due = order.dueDate ? order.dueDate : "";
+          const phone = order.phone ? displayPhoneNumber(order.phone) : "-";
           blocks.push({
             type: "section",
-            fields: [
-              { type: "mrkdwn", text: `*${order.customerName}*${phone ? `\n${phone}` : ""}` },
-              { type: "mrkdwn", text: `${order.itemDescription} x${order.quantity}${due ? `\n${due}` : ""}` },
-            ],
+            text: {
+              type: "mrkdwn",
+              text: `*${order.customerName}*  ·  ${phone}\n>${order.itemDescription} x${order.quantity}`,
+            },
           });
+          if (due) {
+            blocks.push({
+              type: "context",
+              elements: [
+                { type: "mrkdwn", text: `📅 납기 ${due}` },
+              ],
+            });
+          }
         }
       }
     } else {
