@@ -27,27 +27,27 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(response);
   }
 
-  if (command === "/재고") {
+  if (command === "/stock") {
     const response = await handleInventoryCommand(text);
     return NextResponse.json(response);
   }
 
-  if (command === "/입고") {
+  if (command === "/stock-in") {
     const response = await handleInboundCommand(text, userId);
     return NextResponse.json(response);
   }
 
-  if (command === "/출고") {
+  if (command === "/stock-out") {
     const response = await handleOutboundCommand(text, userId);
     return NextResponse.json(response);
   }
 
-  if (command === "/주문") {
+  if (command === "/order") {
     const response = await handleOrderCommand(text);
     return NextResponse.json(response);
   }
 
-  if (command === "/주문추가") {
+  if (command === "/order-add") {
     const response = await handleOrderCreateCommand(text, userId);
     return NextResponse.json(response);
   }
