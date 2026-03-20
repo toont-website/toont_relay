@@ -11,6 +11,12 @@ const envSchema = z.object({
   DATABASE_URL: z.string().startsWith("mysql://"),
   APP_URL: z.string().url(),
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
+  CS_TOOL_API_URL: z.string().url(),
+  CS_TOOL_API_KEY: z.string().min(1),
+  CS_TOOL_WEBHOOK_SECRET: z.string().min(1),
+  SLACK_CHANNEL_ORDER: z.string().startsWith("C"),
+  SLACK_CHANNEL_INVENTORY: z.string().startsWith("C"),
+  SLACK_CHANNEL_OPERATION: z.string().startsWith("C"),
 });
 
 export type Env = z.infer<typeof envSchema>;
