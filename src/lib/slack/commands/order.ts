@@ -9,6 +9,13 @@ import { logger } from "@/lib/logger";
  * - /order 홍길동 → 고객명 검색
  * - /order 접수 → 상태 필터
  */
+const statusDisplayMap: Record<string, string> = {
+  pending: "대기",
+  in_progress: "진행 중",
+  completed: "완료",
+  cancelled: "취소",
+};
+
 export async function handleOrderCommand(text: string) {
   const trimmed = text.trim();
   const client = getCsToolClient();
@@ -39,20 +46,29 @@ export async function handleOrderCommand(text: string) {
       return { text: trimmed ? `"${trimmed}" 검색 결과가 없어요.` : "주문이 없어요." };
     }
 
-    const list = orders
-      .map((order, i) => {
-        const phone = order.phone ? formatPhoneNumber(order.phone) : "-";
-        const stage = order.currentStageName ?? order.status ?? "-";
-        const date = new Date(order.createdAt).toLocaleDateString("ko-KR");
-        const due = order.dueDate ? ` · 납기 ${order.dueDate}` : "";
-        return `*${i + 1}. ${order.customerName}* (${phone})\n    ${order.itemDescription} x${order.quantity} · ${stage}${due} · _${date}_`;
-      })
-      .join("\n\n");
-
     const total = result.meta?.total ?? orders.length;
     const title = trimmed ? `"${trimmed}" 검색 결과` : "최근 주문";
 
-    return { text: `*📋 ${title}* (${total}건)\n\n${list}` };
+    const blocks: any[] = [
+      { type: "header", text: { type: "plain_text", text: `📋 ${title} (${total}건)` } },
+    ];
+
+    for (const order of orders) {
+      const phone = order.phone ? formatPhoneNumber(order.phone) : "-";
+      const stage = order.currentStageName ?? statusDisplayMap[order.status] ?? order.status ?? "-";
+      const date = new Date(order.createdAt).toLocaleDateString("ko-KR");
+      const due = order.dueDate ? `납기 ${order.dueDate}` : "";
+
+      blocks.push({
+        type: "section",
+        fields: [
+          { type: "mrkdwn", text: `*${order.customerName}*\n${phone}` },
+          { type: "mrkdwn", text: `${order.itemDescription} x${order.quantity}\n${stage}${due ? ` · ${due}` : ""} · _${date}_` },
+        ],
+      });
+    }
+
+    return { response_type: "ephemeral" as const, text: " ", blocks };
   } catch (error) {
     const msg = error instanceof Error ? error.message : "알 수 없는 에러";
     logger.error({ error: msg }, "주문 조회 실패");
