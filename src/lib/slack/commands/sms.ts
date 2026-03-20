@@ -236,6 +236,7 @@ async function sendInlineSms(phoneNumber: string, message: string, userId: strin
         status: "sent",
         contactId: contact?.id,
         slackThreadTs: activeThreadTs ?? postResult?.ts ?? undefined,
+        slackUserId: userId,
       },
     });
 

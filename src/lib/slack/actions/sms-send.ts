@@ -109,6 +109,7 @@ export async function executeSmsSend(validated: SmsSendValidated): Promise<void>
           slackActionId,
           contactId: contactId ?? undefined,
           slackThreadTs: threadTs ?? postResult.ts ?? undefined,
+          slackUserId: userId,
         },
       });
     } catch (dbError: any) {
@@ -145,6 +146,7 @@ export async function executeSmsSend(validated: SmsSendValidated): Promise<void>
         slackActionId: `${slackActionId}_failed`,
         contactId: contactId ?? undefined,
         slackThreadTs: threadTs ?? undefined,
+        slackUserId: userId,
       },
     });
   }

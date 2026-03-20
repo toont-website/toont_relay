@@ -7,10 +7,11 @@ interface SmsReceivedMessageParams {
   receivedAt: string;
   threadTs?: string;
   isNewThread: boolean;
+  lastAgentUserId?: string;
 }
 
 export function buildSmsReceivedMessage(params: SmsReceivedMessageParams) {
-  const { senderName, phoneNumber, message, receivedAt, threadTs, isNewThread } = params;
+  const { senderName, phoneNumber, message, receivedAt, threadTs, isNewThread, lastAgentUserId } = params;
   const formattedPhone = formatPhoneNumber(phoneNumber);
 
   const isRegistered = senderName !== null;
@@ -38,8 +39,10 @@ export function buildSmsReceivedMessage(params: SmsReceivedMessageParams) {
     hour12: true,
   });
 
+  const agentLine = lastAgentUserId ? `\n담당자: <@${lastAgentUserId}>` : "";
+
   const blocks: any[] = [
-    { type: "section", text: { type: "mrkdwn", text: headerText } },
+    { type: "section", text: { type: "mrkdwn", text: `${headerText}${agentLine}` } },
     { type: "divider" },
     { type: "section", text: { type: "mrkdwn", text: message } },
     { type: "context", elements: [{ type: "mrkdwn", text: `📅 ${time}` }] },

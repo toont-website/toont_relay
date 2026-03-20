@@ -29,6 +29,7 @@ model MessageLog {
   slackActionId  String?  @unique // 중복 전송 방지
   slackMessageTs String?  // 슬랙 메시지 ts
   slackThreadTs  String?  // 스레드 부모 ts
+  slackUserId    String?  // 발신 담당자 Slack ID
   contact        Contact? @relation(fields: [contactId], references: [id])
   contactId      String?
   createdAt      DateTime @default(now())

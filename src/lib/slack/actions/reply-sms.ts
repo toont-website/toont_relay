@@ -117,6 +117,7 @@ export async function handleRetrySms(payload: any) {
         status: "sent",
         contactId: contact?.id,
         slackThreadTs: threadTs ?? undefined,
+        slackUserId: payload.user.id,
       },
     });
 

@@ -51,6 +51,17 @@ export async function POST(request: NextRequest) {
   const activeThreadTs = await findActiveThread(phoneNumber);
   const isNewThread = activeThreadTs === null;
 
+  // 마지막 발신 담당자 조회
+  const lastOutbound = await prisma.messageLog.findFirst({
+    where: {
+      phoneNumber,
+      direction: "outbound",
+      slackUserId: { not: null },
+    },
+    orderBy: { createdAt: "desc" },
+    select: { slackUserId: true },
+  });
+
   const log = await prisma.messageLog.create({
     data: {
       direction: "inbound",
@@ -71,6 +82,7 @@ export async function POST(request: NextRequest) {
     receivedAt,
     threadTs: activeThreadTs ?? undefined,
     isNewThread,
+    lastAgentUserId: lastOutbound?.slackUserId ?? undefined,
   });
 
   const postResult = await slackClient.chat.postMessage({
