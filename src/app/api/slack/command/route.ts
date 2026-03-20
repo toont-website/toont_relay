@@ -34,13 +34,15 @@ export async function POST(request: NextRequest) {
   }
 
   if (command === "/stock-in") {
-    const response = await handleInboundCommand(text, userId);
-    return NextResponse.json(response);
+    const response = await handleInboundCommand(triggerId);
+    if (response) return NextResponse.json(response);
+    return new NextResponse(null, { status: 200 });
   }
 
   if (command === "/stock-out") {
-    const response = await handleOutboundCommand(text, userId);
-    return NextResponse.json(response);
+    const response = await handleOutboundCommand(triggerId);
+    if (response) return NextResponse.json(response);
+    return new NextResponse(null, { status: 200 });
   }
 
   if (command === "/order") {

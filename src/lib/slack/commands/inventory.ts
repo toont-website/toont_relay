@@ -1,4 +1,5 @@
 import { getCsToolClient } from "@/lib/cs-tool/client";
+import { getSlackClient } from "@/lib/slack/client";
 import { logger } from "@/lib/logger";
 
 /**
@@ -97,63 +98,147 @@ export async function handleInventoryCommand(text: string) {
 }
 
 /**
- * /입고 [SKU] [수량] [사유]
- * 예: /입고 WA-120-POR 10 공장 입고
+ * /stock-in → 입고 모달
  */
-export async function handleInboundCommand(text: string, userId: string) {
-  const parts = text.trim().split(/\s+/);
-  if (parts.length < 2) {
-    return { text: "사용법: `/입고 [SKU] [수량] [사유]`\n예: `/입고 WA-120-POR 10 공장 입고`" };
-  }
-
-  const sku = parts[0];
-  const quantity = parseInt(parts[1], 10);
-  if (isNaN(quantity) || quantity <= 0) {
-    return { text: "수량은 1 이상의 숫자로 입력해주세요." };
-  }
-  const reason = parts.slice(2).join(" ") || undefined;
+export async function handleInboundCommand(triggerId: string) {
+  const client = getCsToolClient();
+  const slackClient = getSlackClient();
 
   try {
-    const client = getCsToolClient();
-    const result = await client.inbound({ sku, quantity, reason });
-    const item = result.data;
-    return {
-      text: `✅ 입고 완료!\n*${item?.name ?? sku}* — +${quantity}${item?.unit ?? "개"}\n현재 재고: ${item?.quantity ?? "?"}${item?.unit ?? "개"}`,
-    };
+    const inventoryResult = await client.getInventory();
+    const items = inventoryResult.data ?? [];
+
+    const options = items.map((item) => ({
+      text: { type: "plain_text" as const, text: `${item.name} (${item.sku}) — ${item.quantity}${item.unit}` },
+      value: item.sku,
+    }));
+
+    await slackClient.views.open({
+      trigger_id: triggerId,
+      view: {
+        type: "modal",
+        callback_id: "stock_in_modal",
+        title: { type: "plain_text", text: "입고 처리" },
+        submit: { type: "plain_text", text: "입고" },
+        close: { type: "plain_text", text: "취소" },
+        blocks: [
+          {
+            type: "input",
+            block_id: "sku_block",
+            label: { type: "plain_text", text: "품목" },
+            element: options.length > 0
+              ? { type: "static_select", action_id: "sku_select", placeholder: { type: "plain_text", text: "품목 선택" }, options: options.slice(0, 100) }
+              : { type: "plain_text_input", action_id: "sku_input", placeholder: { type: "plain_text", text: "SKU 입력" } },
+          },
+          {
+            type: "input",
+            block_id: "quantity_block",
+            label: { type: "plain_text", text: "수량" },
+            element: { type: "plain_text_input", action_id: "quantity_input", placeholder: { type: "plain_text", text: "10" } },
+          },
+          {
+            type: "input",
+            block_id: "reason_block",
+            label: { type: "plain_text", text: "사유" },
+            optional: true,
+            element: { type: "plain_text_input", action_id: "reason_input", placeholder: { type: "plain_text", text: "공장 입고" } },
+          },
+        ],
+      },
+    });
+    return null;
   } catch (error) {
     const msg = error instanceof Error ? error.message : "알 수 없는 에러";
-    return { text: `입고 처리에 실패했어요.\n에러: ${msg}` };
+    return { text: `입고 모달을 여는 데 실패했어요.\n에러: ${msg}` };
   }
 }
 
 /**
- * /출고 [SKU] [수량] [사유]
- * 예: /출고 WA-120-POR 2 고객 배송
+ * /stock-out → 출고 모달
  */
-export async function handleOutboundCommand(text: string, userId: string) {
-  const parts = text.trim().split(/\s+/);
-  if (parts.length < 2) {
-    return { text: "사용법: `/출고 [SKU] [수량] [사유]`\n예: `/출고 WA-120-POR 2 고객 배송`" };
-  }
+export async function handleOutboundCommand(triggerId: string) {
+  const client = getCsToolClient();
+  const slackClient = getSlackClient();
 
-  const sku = parts[0];
-  const quantity = parseInt(parts[1], 10);
-  if (isNaN(quantity) || quantity <= 0) {
-    return { text: "수량은 1 이상의 숫자로 입력해주세요." };
+  try {
+    const inventoryResult = await client.getInventory();
+    const items = inventoryResult.data ?? [];
+
+    const options = items.map((item) => ({
+      text: { type: "plain_text" as const, text: `${item.name} (${item.sku}) — ${item.quantity}${item.unit}` },
+      value: item.sku,
+    }));
+
+    await slackClient.views.open({
+      trigger_id: triggerId,
+      view: {
+        type: "modal",
+        callback_id: "stock_out_modal",
+        title: { type: "plain_text", text: "출고 처리" },
+        submit: { type: "plain_text", text: "출고" },
+        close: { type: "plain_text", text: "취소" },
+        blocks: [
+          {
+            type: "input",
+            block_id: "sku_block",
+            label: { type: "plain_text", text: "품목" },
+            element: options.length > 0
+              ? { type: "static_select", action_id: "sku_select", placeholder: { type: "plain_text", text: "품목 선택" }, options: options.slice(0, 100) }
+              : { type: "plain_text_input", action_id: "sku_input", placeholder: { type: "plain_text", text: "SKU 입력" } },
+          },
+          {
+            type: "input",
+            block_id: "quantity_block",
+            label: { type: "plain_text", text: "수량" },
+            element: { type: "plain_text_input", action_id: "quantity_input", placeholder: { type: "plain_text", text: "2" } },
+          },
+          {
+            type: "input",
+            block_id: "reason_block",
+            label: { type: "plain_text", text: "사유" },
+            optional: true,
+            element: { type: "plain_text_input", action_id: "reason_input", placeholder: { type: "plain_text", text: "고객 배송" } },
+          },
+        ],
+      },
+    });
+    return null;
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "알 수 없는 에러";
+    return { text: `출고 모달을 여는 데 실패했어요.\n에러: ${msg}` };
   }
-  const reason = parts.slice(2).join(" ") || undefined;
+}
+
+/**
+ * stock_in_modal / stock_out_modal submission 처리
+ */
+export async function handleStockSubmission(payload: any, direction: "inbound" | "outbound") {
+  const values = payload.view.state.values;
+
+  const sku = values.sku_block?.sku_select?.selected_option?.value
+    ?? values.sku_block?.sku_input?.value;
+  const quantity = parseInt(values.quantity_block.quantity_input.value, 10);
+  const reason = values.reason_block?.reason_input?.value ?? undefined;
+
+  if (!sku) {
+    return { response_action: "errors" as const, errors: { sku_block: "품목을 선택해주세요." } };
+  }
+  if (isNaN(quantity) || quantity <= 0) {
+    return { response_action: "errors" as const, errors: { quantity_block: "1 이상의 숫자를 입력해주세요." } };
+  }
 
   try {
     const client = getCsToolClient();
-    const result = await client.outbound({ sku, quantity, reason });
-    const item = result.data;
-    const warning =
-      item?.minQuantity && item.quantity <= item.minQuantity ? "\n⚠️ *기준치 이하! 발주를 검토해주세요.*" : "";
-    return {
-      text: `✅ 출고 완료!\n*${item?.name ?? sku}* — -${quantity}${item?.unit ?? "개"}\n현재 재고: ${item?.quantity ?? "?"}${item?.unit ?? "개"}${warning}`,
-    };
+    const result = direction === "inbound"
+      ? await client.inbound({ sku, quantity, reason })
+      : await client.outbound({ sku, quantity, reason });
+
+    const label = direction === "inbound" ? "입고" : "출고";
+    logger.info({ sku, quantity, direction }, `${label} 완료`);
   } catch (error) {
     const msg = error instanceof Error ? error.message : "알 수 없는 에러";
-    return { text: `출고 처리에 실패했어요.\n에러: ${msg}` };
+    return { response_action: "errors" as const, errors: { sku_block: `${direction === "inbound" ? "입고" : "출고"} 실패: ${msg}` } };
   }
+
+  return null;
 }

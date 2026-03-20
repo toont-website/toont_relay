@@ -5,6 +5,7 @@ import { validateSmsSend, executeSmsSend } from "@/lib/slack/actions/sms-send";
 import { handleReplySms, handleRetrySms } from "@/lib/slack/actions/reply-sms";
 import { handleRegisterContact, handleRegisterContactSubmission } from "@/lib/slack/actions/register-contact";
 import { handleOrderAddSubmission } from "@/lib/slack/commands/order";
+import { handleStockSubmission } from "@/lib/slack/commands/inventory";
 import { handleContactSelect } from "@/lib/slack/commands/sms";
 
 export async function POST(request: NextRequest) {
@@ -23,6 +24,16 @@ export async function POST(request: NextRequest) {
     }
     if (callbackId === "register_contact_modal") {
       const response = await handleRegisterContactSubmission(payload);
+      if (response) return NextResponse.json(response);
+      return new NextResponse(null, { status: 200 });
+    }
+    if (callbackId === "stock_in_modal") {
+      const response = await handleStockSubmission(payload, "inbound");
+      if (response) return NextResponse.json(response);
+      return new NextResponse(null, { status: 200 });
+    }
+    if (callbackId === "stock_out_modal") {
+      const response = await handleStockSubmission(payload, "outbound");
       if (response) return NextResponse.json(response);
       return new NextResponse(null, { status: 200 });
     }
