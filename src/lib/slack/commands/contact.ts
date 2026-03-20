@@ -97,7 +97,7 @@ async function deleteContact(input: string) {
 
   if (contacts.length > 1) {
     const list = contacts.map((c) => `• ${c.name} (${formatPhoneNumber(c.phoneNumber)})`).join("\n");
-    return { text: `"${name}" 검색 결과 ${contacts.length}명. 정확한 이름으로 다시:\n${list}` };
+    return { text: `"${input}" 이름의 연락처가 ${contacts.length}명 있어요. 정확한 이름이나 전화번호로 다시 입력해주세요!\n\n${list}\n\n예: \`/contact 삭제 010-1234-5678\`` };
   }
 
   // 메시지 로그의 FK 참조 해제 후 삭제
