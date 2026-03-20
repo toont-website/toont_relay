@@ -79,7 +79,7 @@ export interface OperationBoard {
 
 // 웹훅 이벤트
 export interface CsToolWebhookEvent {
-  event: "order.created" | "order.status_changed" | "inventory.low_stock";
+  event: "order.created" | "order.status_changed" | "inventory.updated" | "inventory.low_stock";
   data: any;
   timestamp: string;
 }

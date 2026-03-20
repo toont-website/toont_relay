@@ -105,6 +105,34 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    if (event.event === "inventory.updated") {
+      const item = event.data.item ?? event.data;
+      const change = event.data.change ?? {};
+      const isInbound = change.type === "inbound";
+      const color = isInbound ? "#36C759" : "#2196F3";
+      const icon = isInbound ? "📥 입고" : "📤 출고";
+      const reason = change.reason ? ` · ${change.reason}` : "";
+
+      await slackClient.chat.postMessage({
+        channel: env.SLACK_CHANNEL_INVENTORY,
+        text: " ",
+        attachments: [
+          {
+            color,
+            blocks: [
+              {
+                type: "section",
+                text: {
+                  type: "mrkdwn",
+                  text: `${icon} *${item.name}* (\`${item.sku}\`)\n>${isInbound ? "+" : "-"}${change.quantity ?? "?"}${item.unit ?? "개"}${reason}\n\n*현재 재고:* ${item.quantity}${item.unit ?? "개"}`,
+                },
+              },
+            ],
+          },
+        ],
+      });
+    }
+
     if (event.event === "inventory.low_stock") {
       const item = event.data.item ?? event.data;
 
