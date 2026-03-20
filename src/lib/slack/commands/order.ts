@@ -1,6 +1,6 @@
 import { getCsToolClient } from "@/lib/cs-tool/client";
 import { getSlackClient } from "@/lib/slack/client";
-import { formatPhoneNumber, normalizePhoneNumber } from "@/lib/utils/phone";
+import { displayPhoneNumber, normalizePhoneNumber } from "@/lib/utils/phone";
 import { logger } from "@/lib/logger";
 
 /**
@@ -54,7 +54,7 @@ export async function handleOrderCommand(text: string) {
     ];
 
     for (const order of orders) {
-      const phone = order.phone ? formatPhoneNumber(order.phone) : "-";
+      const phone = order.phone ? displayPhoneNumber(order.phone) : "-";
       const stage = order.currentStageName ?? statusDisplayMap[order.status] ?? order.status ?? "-";
       const date = new Date(order.createdAt).toLocaleDateString("ko-KR");
       const due = order.dueDate ? `납기 ${order.dueDate}` : "";

@@ -29,3 +29,23 @@ export function formatPhoneNumber(e164: string): string {
   if (local.length === 10) return `${local.slice(0, 3)}-${local.slice(3, 6)}-${local.slice(6)}`;
   return local;
 }
+
+/**
+ * 어떤 형식이든 → 010-1234-5678 포맷으로
+ * E.164, 로컬(01012345678), 앞자리0(001012345678) 전부 처리
+ */
+export function displayPhoneNumber(input: string): string {
+  const normalized = normalizePhoneNumber(input);
+  if (normalized) return formatPhoneNumber(normalized);
+
+  // normalizePhoneNumber가 실패하면 그냥 원본 반환
+  // 하지만 앞자리 00 제거 시도
+  const cleaned = input.replace(/[\s\-()]/g, "");
+  if (/^00[1-9]/.test(cleaned)) {
+    const withoutPrefix = "0" + cleaned.slice(2);
+    const norm = normalizePhoneNumber(withoutPrefix);
+    if (norm) return formatPhoneNumber(norm);
+  }
+
+  return input;
+}

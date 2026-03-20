@@ -3,7 +3,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { getEnv } from "@/lib/config/env";
 import { getSlackClient } from "@/lib/slack/client";
 import { logger } from "@/lib/logger";
-import { formatPhoneNumber } from "@/lib/utils/phone";
+import { displayPhoneNumber } from "@/lib/utils/phone";
 import type { CsToolWebhookEvent } from "@/lib/cs-tool/types";
 
 function verifyWebhookSignature(
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     if (event.event === "order.created") {
       // payload 구조 자동 감지: { order: {...} } 또는 직접 order 객체
       const order = event.data.order ?? event.data;
-      const phone = order.phone ? formatPhoneNumber(order.phone) : "-";
+      const phone = order.phone ? displayPhoneNumber(order.phone) : "-";
 
       await slackClient.chat.postMessage({
         channel: env.SLACK_CHANNEL_ORDER,

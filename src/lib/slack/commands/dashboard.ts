@@ -1,6 +1,6 @@
 import { getCsToolClient } from "@/lib/cs-tool/client";
 import { logger } from "@/lib/logger";
-import { formatPhoneNumber } from "@/lib/utils/phone";
+import { displayPhoneNumber } from "@/lib/utils/phone";
 
 /**
  * /dashboard — 운영 현황 대시보드
@@ -71,7 +71,7 @@ export async function handleDashboardCommand() {
         });
         for (const order of stageOrders) {
           const due = order.dueDate ? `납기 ${order.dueDate}` : "";
-          const phone = order.phone ? formatPhoneNumber(order.phone) : "";
+          const phone = order.phone ? displayPhoneNumber(order.phone) : "";
           blocks.push({
             type: "section",
             fields: [
