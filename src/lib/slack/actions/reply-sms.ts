@@ -33,11 +33,13 @@ export async function handleReplySms(payload: any) {
     take: 3,
   });
 
+  const contactLabel = contact?.name ?? formatPhoneNumber(phoneNumber);
+
   const contextBlocks: any[] = [];
   if (recentMessages.length > 0) {
     contextBlocks.push({
       type: "section",
-      text: { type: "mrkdwn", text: "*최근 대화*" },
+      text: { type: "mrkdwn", text: `*💬 ${contactLabel}님 최근 대화*` },
     });
 
     for (const msg of [...recentMessages].reverse()) {
@@ -47,16 +49,18 @@ export async function handleReplySms(payload: any) {
         minute: "2-digit",
         hour12: true,
       });
-      const icon = msg.direction === "inbound" ? "📩 고객" : "📤 발신";
+      const isInbound = msg.direction === "inbound";
+      const label = isInbound ? `📩 ${contactLabel}님` : "📤 나";
       const preview = msg.message.length > 50
-        ? msg.message.substring(0, 50) + "..."
+        ? msg.message.substring(0, 50) + "…"
         : msg.message;
 
       contextBlocks.push({
-        type: "context",
-        elements: [
-          { type: "mrkdwn", text: `${icon} (${time})\n"${preview}"` },
-        ],
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `${label}  _${time}_\n>${preview}`,
+        },
       });
     }
 
