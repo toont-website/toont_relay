@@ -59,14 +59,18 @@ async function listContacts() {
   });
 
   if (contacts.length === 0) {
-    return { text: "등록된 연락처가 없습니다." };
+    return { text: "등록된 연락처가 없어요." };
   }
 
-  const list = contacts
-    .map((c) => `• ${c.name} — ${formatPhoneNumber(c.phoneNumber)}${c.memo ? ` (${c.memo})` : ""}`)
+  let table = "*이름  |  전화번호  |  메모*\n";
+  table += contacts
+    .map((c) => {
+      const memo = c.memo ? c.memo : "-";
+      return `${c.name}  |  ${formatPhoneNumber(c.phoneNumber)}  |  ${memo}`;
+    })
     .join("\n");
 
-  return { text: `*연락처 목록* (${contacts.length}명)\n${list}` };
+  return { text: `*📇 연락처 목록* (${contacts.length}명)\n\n${table}` };
 }
 
 async function deleteContact(name: string) {

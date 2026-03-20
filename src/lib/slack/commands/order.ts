@@ -17,9 +17,11 @@ export async function handleOrderCommand(text: string) {
     const filters: Record<string, string> = { limit: "10" };
     if (trimmed) {
       const statusMap: Record<string, string> = {
-        접수: "received",
-        제작: "production",
-        배송중: "shipping",
+        접수: "pending",
+        대기: "pending",
+        제작: "in_progress",
+        진행: "in_progress",
+        배송중: "in_progress",
         완료: "completed",
         취소: "cancelled",
       };
@@ -38,13 +40,14 @@ export async function handleOrderCommand(text: string) {
     }
 
     const list = orders
-      .map((order) => {
-        const phone = order.phone ? ` (${formatPhoneNumber(order.phone)})` : "";
-        const stage = order.currentStageName ? ` · ${order.currentStageName}` : "";
+      .map((order, i) => {
+        const phone = order.phone ? formatPhoneNumber(order.phone) : "-";
+        const stage = order.currentStageName ?? order.status ?? "-";
         const date = new Date(order.createdAt).toLocaleDateString("ko-KR");
-        return `• *${order.customerName}*${phone} — ${order.itemDescription} x${order.quantity}${stage} _(${date})_`;
+        const due = order.dueDate ? ` · 납기 ${order.dueDate}` : "";
+        return `*${i + 1}. ${order.customerName}* (${phone})\n    ${order.itemDescription} x${order.quantity} · ${stage}${due} · _${date}_`;
       })
-      .join("\n");
+      .join("\n\n");
 
     const total = result.meta?.total ?? orders.length;
     const title = trimmed ? `"${trimmed}" 검색 결과` : "최근 주문";
