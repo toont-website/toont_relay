@@ -84,10 +84,12 @@ async function listContacts() {
   return { response_type: "ephemeral" as const, text: " ", blocks };
 }
 
-async function deleteContact(name: string) {
-  const contacts = await prisma.contact.findMany({
-    where: { name: { contains: name } },
-  });
+async function deleteContact(input: string) {
+  // 전화번호로 삭제 시도
+  const normalized = normalizePhoneNumber(input);
+  const contacts = normalized
+    ? await prisma.contact.findMany({ where: { phoneNumber: normalized } })
+    : await prisma.contact.findMany({ where: { name: { contains: input } } });
 
   if (contacts.length === 0) {
     return { text: `"${name}" 검색 결과 없음.` };
