@@ -29,9 +29,19 @@ export interface CreateOrderParams {
   itemDescription: string;
   quantity: number;
   phone: string;
+  sku?: string;
   address?: string;
   dueDate?: string;
   channel?: string;
+}
+
+export interface CreateOrderResponse {
+  order: Order;
+  inventory?: {
+    deducted: boolean;
+    remaining: number | null;
+    warning: string | null;
+  };
 }
 
 export interface UpdateOrderParams {

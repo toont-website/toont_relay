@@ -4,6 +4,7 @@ import type {
   CsToolResponse,
   Order,
   CreateOrderParams,
+  CreateOrderResponse,
   UpdateOrderParams,
   InventoryItem,
   StockChangeParams,
@@ -68,8 +69,8 @@ class CsToolClient {
     return this.request<Order>("GET", `/orders/${id}`);
   }
 
-  async createOrder(params: CreateOrderParams): Promise<CsToolResponse<Order>> {
-    return this.request<Order>("POST", "/orders", params);
+  async createOrder(params: CreateOrderParams): Promise<CsToolResponse<CreateOrderResponse>> {
+    return this.request<CreateOrderResponse>("POST", "/orders", params);
   }
 
   async updateOrder(id: string, params: UpdateOrderParams): Promise<CsToolResponse<Order>> {

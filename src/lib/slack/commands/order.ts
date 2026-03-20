@@ -199,12 +199,14 @@ export async function handleOrderAddSubmission(payload: any) {
 
   // 상품 — 드롭다운 또는 직접 입력
   let itemDescription: string;
+  let sku: string | undefined;
   const selectedProduct = values.product_block?.product_select?.selected_option;
   const manualProduct = values.product_block?.product_input?.value;
 
   if (selectedProduct) {
     const parsed = JSON.parse(selectedProduct.value);
     itemDescription = parsed.name;
+    sku = parsed.sku;
   } else if (manualProduct) {
     itemDescription = manualProduct;
   } else {
@@ -238,17 +240,23 @@ export async function handleOrderAddSubmission(payload: any) {
 
   try {
     const client = getCsToolClient();
-    await client.createOrder({
+    const result = await client.createOrder({
       customerName,
       itemDescription,
       quantity,
       phone,
+      sku,
       address,
       dueDate,
       channel: "slack",
     });
 
-    logger.info({ customerName, itemDescription, quantity }, "주문 등록 완료");
+    const inv = result.data?.inventory;
+    if (inv?.warning) {
+      logger.warn({ customerName, sku, warning: inv.warning }, "주문 등록 — 재고 경고");
+    }
+
+    logger.info({ customerName, itemDescription, quantity, sku }, "주문 등록 완료");
   } catch (error) {
     const msg = error instanceof Error ? error.message : "알 수 없는 에러";
     logger.error({ error: msg }, "주문 등록 실패");
