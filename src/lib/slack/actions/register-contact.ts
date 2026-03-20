@@ -1,6 +1,6 @@
 import { getSlackClient } from "@/lib/slack/client";
 import { prisma } from "@/lib/db/prisma";
-import { formatPhoneNumber } from "@/lib/utils/phone";
+import { formatPhoneNumber, normalizePhoneNumber } from "@/lib/utils/phone";
 import { logger } from "@/lib/logger";
 
 export async function handleRegisterContact(payload: any) {
@@ -43,7 +43,8 @@ export async function handleRegisterContact(payload: any) {
 }
 
 export async function handleRegisterContactSubmission(payload: any) {
-  const { phoneNumber } = JSON.parse(payload.view.private_metadata);
+  const { phoneNumber: rawPhone } = JSON.parse(payload.view.private_metadata);
+  const phoneNumber = normalizePhoneNumber(rawPhone) ?? rawPhone;
   const name = payload.view.state.values.name_block.name_input.value;
   const memo = payload.view.state.values.memo_block?.memo_input?.value ?? null;
 
