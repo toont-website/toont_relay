@@ -79,8 +79,12 @@ async function openSmsModal(triggerId: string) {
       blocks: [
         {
           type: "section",
+          text: { type: "mrkdwn", text: "📇 *받는 사람을 선택해주세요*\n아래에서 이름이나 번호를 검색할 수 있어요." },
+        },
+        {
+          type: "section",
           block_id: "recipient_block",
-          text: { type: "mrkdwn", text: "*받는 사람*" },
+          text: { type: "mrkdwn", text: " " },
           accessory: {
             type: "external_select",
             action_id: "contact_select",
@@ -88,6 +92,7 @@ async function openSmsModal(triggerId: string) {
             min_query_length: 1,
           },
         },
+        { type: "divider" },
         {
           type: "input",
           block_id: "message_block",
@@ -201,7 +206,7 @@ export async function handleContactSelect(payload: any) {
         {
           type: "section",
           block_id: "recipient_block",
-          text: { type: "mrkdwn", text: `*받는 사람:* ${displayText}` },
+          text: { type: "mrkdwn", text: `✅ *${displayText}*` },
           accessory: {
             type: "external_select",
             action_id: "contact_select",
