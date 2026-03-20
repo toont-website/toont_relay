@@ -14,13 +14,17 @@ export function buildSmsReceivedMessage(params: SmsReceivedMessageParams) {
   const formattedPhone = formatPhoneNumber(phoneNumber);
 
   const isRegistered = senderName !== null;
-  const displayName = isRegistered
-    ? `*${senderName}* (${formattedPhone})`
-    : `*⚠️ 미등록 번호* (${formattedPhone})`;
+  const contactDisplay = isRegistered
+    ? `${senderName} (${formattedPhone})`
+    : formattedPhone;
 
   const headerText = isNewThread
-    ? `*📩 새 문의* — ${displayName}`
-    : `*📩 고객*${isRegistered ? ` — ${senderName}` : ""}`;
+    ? isRegistered
+      ? `*📩 ${contactDisplay}*`
+      : `*📩 ⚠️ 미등록 번호* (${formattedPhone})`
+    : isRegistered
+      ? `*📩 ${contactDisplay}*`
+      : `*📩 ${formattedPhone}*`;
 
   const color = isRegistered ? "#36C759" : "#FFB800";
 
@@ -62,8 +66,10 @@ export function buildSmsReceivedMessage(params: SmsReceivedMessageParams) {
 
   blocks.push({ type: "actions", elements: actions });
 
+  const fallbackLabel = isNewThread ? "새 문의" : "수신";
+
   return {
-    text: `SMS 수신 — ${senderName ?? formattedPhone} (${formattedPhone})`,
+    text: `📩 ${fallbackLabel} — ${contactDisplay}`,
     attachments: [{ color, blocks }],
   };
 }

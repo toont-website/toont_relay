@@ -24,7 +24,10 @@ export function buildSmsSentMessage(params: SmsSentMessageParams) {
   const blocks: any[] = [
     {
       type: "section",
-      text: { type: "mrkdwn", text: `*📤 발신* — <@${senderUserId}> → ${recipientName}` },
+      text: {
+        type: "mrkdwn",
+        text: `*📤 ${recipientName}*\n담당자: <@${senderUserId}>`,
+      },
     },
     { type: "divider" },
     { type: "section", text: { type: "mrkdwn", text: message } },
@@ -32,7 +35,7 @@ export function buildSmsSentMessage(params: SmsSentMessageParams) {
   ];
 
   return {
-    text: `SMS 발신 → ${recipientName}`,
+    text: `📤 발신 → ${recipientName}`,
     attachments: [{ color: "#2196F3", blocks }],
   };
 }
@@ -53,9 +56,10 @@ export function buildSmsFailedMessage(params: SmsFailedMessageParams) {
       type: "section",
       text: {
         type: "mrkdwn",
-        text: `*❌ 발송 실패* — ${recipientName} (${formatPhoneNumber(phoneNumber)})\n에러: ${error}`,
+        text: `*❌ ${recipientName}*\n발송 실패: ${error}`,
       },
     },
+    { type: "divider" },
     { type: "section", text: { type: "mrkdwn", text: message } },
     {
       type: "actions",
@@ -72,7 +76,7 @@ export function buildSmsFailedMessage(params: SmsFailedMessageParams) {
   ];
 
   return {
-    text: `SMS 발송 실패 — ${recipientName}`,
+    text: `❌ 발송 실패 → ${recipientName}`,
     attachments: [{ color: "#FF3B30", blocks }],
   };
 }
