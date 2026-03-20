@@ -26,7 +26,7 @@ export function buildSmsSentMessage(params: SmsSentMessageParams) {
       type: "section",
       text: {
         type: "mrkdwn",
-        text: `*📤 ${recipientName}*\n담당자: <@${senderUserId}>`,
+        text: `📤 <@${senderUserId}> 님이 ${recipientName} 님에게 문자를 보냈어요.`,
       },
     },
     { type: "divider" },
@@ -35,7 +35,7 @@ export function buildSmsSentMessage(params: SmsSentMessageParams) {
   ];
 
   return {
-    text: `📤 발신 → ${recipientName}`,
+    text: `📤 ${recipientName} 님에게 문자 발송`,
     attachments: [{ color: "#2196F3", blocks }],
   };
 }
@@ -56,7 +56,7 @@ export function buildSmsFailedMessage(params: SmsFailedMessageParams) {
       type: "section",
       text: {
         type: "mrkdwn",
-        text: `*❌ ${recipientName}*\n발송 실패: ${error}`,
+        text: `❌ ${recipientName} 님에게 문자 발송에 실패했어요.\n사유: ${error}`,
       },
     },
     { type: "divider" },
@@ -76,7 +76,7 @@ export function buildSmsFailedMessage(params: SmsFailedMessageParams) {
   ];
 
   return {
-    text: `❌ 발송 실패 → ${recipientName}`,
+    text: `❌ ${recipientName} 님에게 발송 실패`,
     attachments: [{ color: "#FF3B30", blocks }],
   };
 }

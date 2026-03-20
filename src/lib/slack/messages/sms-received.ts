@@ -16,16 +16,28 @@ export function buildSmsReceivedMessage(params: SmsReceivedMessageParams) {
 
   const isRegistered = senderName !== null;
   const contactDisplay = isRegistered
-    ? `${senderName} (${formattedPhone})`
+    ? `*${senderName}* (${formattedPhone})`
     : formattedPhone;
 
-  const headerText = isNewThread
-    ? isRegistered
-      ? `*📩 ${contactDisplay}*`
-      : `*📩 ⚠️ 미등록 번호* (${formattedPhone})`
-    : isRegistered
-      ? `*📩 ${contactDisplay}*`
-      : `*📩 ${formattedPhone}*`;
+  // 상황별 안내 문구
+  let greeting: string;
+  if (isNewThread && lastAgentUserId) {
+    greeting = isRegistered
+      ? `<@${lastAgentUserId}> 님! ${contactDisplay} 님으로부터 새로운 문의가 들어왔어요. 확인해보세요!`
+      : `<@${lastAgentUserId}> 님! ${formattedPhone} 번호에서 새로운 문의가 들어왔어요.`;
+  } else if (isNewThread) {
+    greeting = isRegistered
+      ? `📩 ${contactDisplay} 님으로부터 새로운 문의가 도착했어요! 확인해보세요.`
+      : `📩 ⚠️ 미등록 번호 (${formattedPhone})에서 새로운 문의가 도착했어요!`;
+  } else if (lastAgentUserId) {
+    greeting = isRegistered
+      ? `<@${lastAgentUserId}> 님! ${senderName} 님이 답장을 보냈어요.`
+      : `<@${lastAgentUserId}> 님! ${formattedPhone} 번호에서 답장이 왔어요.`;
+  } else {
+    greeting = isRegistered
+      ? `${senderName} 님이 답장을 보냈어요.`
+      : `${formattedPhone} 번호에서 답장이 왔어요.`;
+  }
 
   const color = isRegistered ? "#36C759" : "#FFB800";
 
@@ -39,10 +51,8 @@ export function buildSmsReceivedMessage(params: SmsReceivedMessageParams) {
     hour12: true,
   });
 
-  const agentLine = lastAgentUserId ? `\n담당자: <@${lastAgentUserId}>` : "";
-
   const blocks: any[] = [
-    { type: "section", text: { type: "mrkdwn", text: `${headerText}${agentLine}` } },
+    { type: "section", text: { type: "mrkdwn", text: greeting } },
     { type: "divider" },
     { type: "section", text: { type: "mrkdwn", text: message } },
     { type: "context", elements: [{ type: "mrkdwn", text: `📅 ${time}` }] },
@@ -69,10 +79,12 @@ export function buildSmsReceivedMessage(params: SmsReceivedMessageParams) {
 
   blocks.push({ type: "actions", elements: actions });
 
-  const fallbackLabel = isNewThread ? "새 문의" : "수신";
+  const fallbackText = isNewThread
+    ? `📩 ${senderName ?? formattedPhone} 님으로부터 새로운 문의`
+    : `📩 ${senderName ?? formattedPhone} 님이 답장을 보냈어요`;
 
   return {
-    text: `📩 ${fallbackLabel} — ${contactDisplay}`,
+    text: fallbackText,
     attachments: [{ color, blocks }],
   };
 }

@@ -11,7 +11,7 @@ describe("buildSmsSentMessage", () => {
       gatewayMessageId: "msg-456",
     });
 
-    expect(result.text).toBe("📤 발신 → 김철수 (010-1234-5678)");
+    expect(result.text).toBe("📤 김철수 (010-1234-5678) 님에게 문자 발송");
     const blocks = result.attachments[0].blocks;
     expect(blocks).toHaveLength(4);
     expect(blocks[0].text.text).toContain("<@U123>");
