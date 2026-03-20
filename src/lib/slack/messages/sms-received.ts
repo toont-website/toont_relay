@@ -19,6 +19,7 @@ export function buildSmsReceivedMessage(params: SmsReceivedMessageParams) {
     ? `*${senderName}* (${formattedPhone})`
     : formattedPhone;
 
+  // contactDisplay는 항상 이름(번호) 또는 번호만
   // 상황별 안내 문구
   let greeting: string;
   if (isNewThread && lastAgentUserId) {
@@ -31,11 +32,11 @@ export function buildSmsReceivedMessage(params: SmsReceivedMessageParams) {
       : `📩 ⚠️ 미등록 번호 (${formattedPhone})에서 새로운 문의가 도착했어요!`;
   } else if (lastAgentUserId) {
     greeting = isRegistered
-      ? `<@${lastAgentUserId}> 님! ${senderName} 님이 답장을 보냈어요.`
+      ? `<@${lastAgentUserId}> 님! ${contactDisplay} 님이 답장을 보냈어요.`
       : `<@${lastAgentUserId}> 님! ${formattedPhone} 번호에서 답장이 왔어요.`;
   } else {
     greeting = isRegistered
-      ? `${senderName} 님이 답장을 보냈어요.`
+      ? `${contactDisplay} 님이 답장을 보냈어요.`
       : `${formattedPhone} 번호에서 답장이 왔어요.`;
   }
 
@@ -79,12 +80,8 @@ export function buildSmsReceivedMessage(params: SmsReceivedMessageParams) {
 
   blocks.push({ type: "actions", elements: actions });
 
-  const fallbackText = isNewThread
-    ? `📩 ${senderName ?? formattedPhone} 님으로부터 새로운 문의`
-    : `📩 ${senderName ?? formattedPhone} 님이 답장을 보냈어요`;
-
   return {
-    text: fallbackText,
+    text: " ",
     attachments: [{ color, blocks }],
   };
 }
