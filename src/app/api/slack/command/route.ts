@@ -49,8 +49,9 @@ export async function POST(request: NextRequest) {
   }
 
   if (command === "/order-add") {
-    const response = await handleOrderCreateCommand(text, userId);
-    return NextResponse.json(response);
+    const response = await handleOrderCreateCommand(triggerId);
+    if (response) return NextResponse.json(response);
+    return new NextResponse(null, { status: 200 });
   }
 
   if (command === "/dashboard") {
