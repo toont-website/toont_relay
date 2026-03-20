@@ -4,6 +4,7 @@ import { handleSmsCommand } from "@/lib/slack/commands/sms";
 import { handleContactCommand } from "@/lib/slack/commands/contact";
 import { handleInventoryCommand, handleInboundCommand, handleOutboundCommand } from "@/lib/slack/commands/inventory";
 import { handleOrderCommand, handleOrderCreateCommand } from "@/lib/slack/commands/order";
+import { handleDashboardCommand } from "@/lib/slack/commands/dashboard";
 
 export async function POST(request: NextRequest) {
   const result = await parseSlackRequest(request);
@@ -49,6 +50,11 @@ export async function POST(request: NextRequest) {
 
   if (command === "/order-add") {
     const response = await handleOrderCreateCommand(text, userId);
+    return NextResponse.json(response);
+  }
+
+  if (command === "/dashboard") {
+    const response = await handleDashboardCommand();
     return NextResponse.json(response);
   }
 
