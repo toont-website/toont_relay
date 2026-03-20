@@ -113,6 +113,24 @@ export async function handleDashboardCommand() {
       ],
     });
 
+    blocks.push({
+      type: "actions",
+      elements: [
+        {
+          type: "button",
+          text: { type: "plain_text", text: "📋 주문 관리" },
+          url: "https://cs.toont.co.kr/?view=operations",
+          action_id: "link_orders",
+        },
+        {
+          type: "button",
+          text: { type: "plain_text", text: "📦 재고 관리" },
+          url: "https://cs.toont.co.kr/?view=inventory",
+          action_id: "link_inventory",
+        },
+      ],
+    });
+
     return {
       response_type: "ephemeral",
       text: " ",

@@ -62,7 +62,7 @@ export async function handleOrderCommand(text: string) {
           type: "section",
           text: {
             type: "mrkdwn",
-            text: `*${order.customerName}*  ·  ${phone}\n>${order.itemDescription} x${order.quantity}`,
+            text: `*${order.customerName}*  ·  ${phone}  <https://cs.toont.co.kr/?view=operations&orderId=${order.id}|관리하기>\n>${order.itemDescription} x${order.quantity}`,
           },
         },
         {
@@ -79,6 +79,11 @@ export async function handleOrderCommand(text: string) {
     if (blocks.length > 1 && blocks[blocks.length - 1].type === "divider") {
       blocks.pop();
     }
+
+    blocks.push({
+      type: "context",
+      elements: [{ type: "mrkdwn", text: `<https://cs.toont.co.kr/?view=operations|📋 CS Tool에서 전체 주문 보기>` }],
+    });
 
     return { response_type: "ephemeral" as const, text: " ", blocks };
   } catch (error) {

@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
                 type: "section",
                 text: {
                   type: "mrkdwn",
-                  text: `📋 *새 주문이 등록됐어요!*\n\n*고객:* ${order.customerName} (${phone})\n*상품:* ${order.itemDescription}\n*수량:* ${order.quantity}개${order.dueDate ? `\n*납기:* ${order.dueDate}` : ""}${order.channel ? `\n*채널:* ${order.channel}` : ""}`,
+                  text: `📋 *새 주문이 등록됐어요!*\n\n*고객:* ${order.customerName} (${phone})\n*상품:* ${order.itemDescription} x${order.quantity}개${order.dueDate ? `\n*납기:* ${order.dueDate}` : ""}\n\n<https://cs.toont.co.kr/?view=operations&orderId=${order.id}|CS Tool에서 관리하기>`,
                 },
               },
             ],
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
                 type: "section",
                 text: {
                   type: "mrkdwn",
-                  text: `🔄 *주문 상태가 변경됐어요*\n\n*고객:* ${order.customerName}\n*상품:* ${order.itemDescription} x${order.quantity}\n*변경:* ${prevStatus} → *${currStatus}*`,
+                  text: `🔄 *주문 상태가 변경됐어요*\n\n*고객:* ${order.customerName}\n*상품:* ${order.itemDescription} x${order.quantity}\n*변경:* ${prevStatus} → *${currStatus}*\n\n<https://cs.toont.co.kr/?view=operations&orderId=${order.id}|CS Tool에서 관리하기>`,
                 },
               },
             ],
@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
                 type: "section",
                 text: {
                   type: "mrkdwn",
-                  text: `${icon} *${item.name}* (\`${item.sku}\`)\n>${isInbound ? "+" : "-"}${change.quantity ?? "?"}${item.unit ?? "개"}${reason}\n\n*현재 재고:* ${item.quantity}${item.unit ?? "개"}`,
+                  text: `${icon} *${item.name}* (\`${item.sku}\`)\n>${isInbound ? "+" : "-"}${change.quantity ?? "?"}${item.unit ?? "개"}${reason}\n\n*현재 재고:* ${item.quantity}${item.unit ?? "개"}\n\n<https://cs.toont.co.kr/?view=inventory|재고 관리하기>`,
                 },
               },
             ],
@@ -147,7 +147,7 @@ export async function POST(request: NextRequest) {
                 type: "section",
                 text: {
                   type: "mrkdwn",
-                  text: `⚠️ *재고가 부족해요!*\n\n*품목:* ${item.name} (${item.sku})\n*현재:* ${item.quantity}${item.unit}\n*기준:* ${item.minQuantity}${item.unit}\n\n발주를 검토해주세요.`,
+                  text: `⚠️ *재고가 부족해요!*\n\n*품목:* ${item.name} (${item.sku})\n*현재:* ${item.quantity}${item.unit}\n*기준:* ${item.minQuantity}${item.unit}\n\n발주를 검토해주세요.\n\n<https://cs.toont.co.kr/?view=inventory|재고 관리하기>`,
                 },
               },
             ],

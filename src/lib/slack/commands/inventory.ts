@@ -39,6 +39,11 @@ export async function handleInventoryCommand(text: string) {
         elements: [{ type: "mrkdwn", text: `총 ${items.length}종` }],
       });
 
+      blocks.push({
+        type: "context",
+        elements: [{ type: "mrkdwn", text: `<https://cs.toont.co.kr/?view=inventory|📦 CS Tool에서 재고 관리하기>` }],
+      });
+
       return { response_type: "ephemeral", text: " ", blocks };
     }
 
@@ -60,6 +65,11 @@ export async function handleInventoryCommand(text: string) {
           ],
         });
       }
+
+      blocks.push({
+        type: "context",
+        elements: [{ type: "mrkdwn", text: `<https://cs.toont.co.kr/?view=inventory|📦 CS Tool에서 재고 관리하기>` }],
+      });
 
       return { response_type: "ephemeral", text: " ", blocks };
     }
@@ -87,7 +97,7 @@ export async function handleInventoryCommand(text: string) {
     }
     blocks.push({
       type: "context",
-      elements: [{ type: "mrkdwn", text: `카테고리: ${item.category ?? "-"}` }],
+      elements: [{ type: "mrkdwn", text: `카테고리: ${item.category ?? "-"}  ·  <https://cs.toont.co.kr/?view=inventory|재고 관리하기>` }],
     });
     return { response_type: "ephemeral", text: " ", blocks };
   } catch (error) {
