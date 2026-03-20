@@ -98,6 +98,11 @@ async function deleteContact(name: string) {
     return { text: `"${name}" 검색 결과 ${contacts.length}명. 정확한 이름으로 다시:\n${list}` };
   }
 
+  // 메시지 로그의 FK 참조 해제 후 삭제
+  await prisma.messageLog.updateMany({
+    where: { contactId: contacts[0].id },
+    data: { contactId: null },
+  });
   await prisma.contact.delete({ where: { id: contacts[0].id } });
   return { text: `연락처 삭제: ${contacts[0].name} (${formatPhoneNumber(contacts[0].phoneNumber)})` };
 }
