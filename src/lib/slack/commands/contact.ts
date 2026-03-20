@@ -62,15 +62,26 @@ async function listContacts() {
     return { text: "등록된 연락처가 없어요." };
   }
 
-  let table = "*이름  |  전화번호  |  메모*\n";
-  table += contacts
-    .map((c) => {
-      const memo = c.memo ? c.memo : "-";
-      return `${c.name}  |  ${formatPhoneNumber(c.phoneNumber)}  |  ${memo}`;
-    })
-    .join("\n");
+  const blocks: any[] = [
+    { type: "header", text: { type: "plain_text", text: "📇 연락처 목록" } },
+  ];
 
-  return { text: `*📇 연락처 목록* (${contacts.length}명)\n\n${table}` };
+  for (const c of contacts) {
+    blocks.push({
+      type: "section",
+      fields: [
+        { type: "mrkdwn", text: `*${c.name}*\n${formatPhoneNumber(c.phoneNumber)}` },
+        { type: "mrkdwn", text: c.memo ?? "_메모 없음_" },
+      ],
+    });
+  }
+
+  blocks.push({
+    type: "context",
+    elements: [{ type: "mrkdwn", text: `총 ${contacts.length}명` }],
+  });
+
+  return { response_type: "ephemeral" as const, text: " ", blocks };
 }
 
 async function deleteContact(name: string) {

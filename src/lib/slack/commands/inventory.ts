@@ -63,15 +63,32 @@ export async function handleInventoryCommand(text: string) {
       return { response_type: "ephemeral", text: " ", blocks };
     }
 
-    // SKU 조회
-    const result = await client.getInventoryBySku(trimmed);
-    const item = result.data;
+    // SKU 조회 — 전체 목록에서 필터
+    const result = await client.getInventory();
+    const items = result.data ?? [];
+    const item = items.find((i) => i.sku === trimmed || i.name.includes(trimmed));
+
     if (!item) return { text: `"${trimmed}" SKU를 찾을 수 없어요.` };
 
-    const warning = item.minQuantity && item.quantity <= item.minQuantity ? "\n⚠️ *기준치 이하입니다!*" : "";
-    return {
-      text: `*📦 ${item.name}*\nSKU: ${item.sku}\n수량: ${item.quantity}${item.unit}\n최소 기준: ${item.minQuantity ?? "-"}${item.unit}${warning}`,
-    };
+    const isLow = item.minQuantity != null && item.quantity <= item.minQuantity;
+    const warning = isLow ? "\n⚠️ *기준치 이하입니다! 발주를 검토해주세요.*" : "";
+    const blocks: any[] = [
+      {
+        type: "section",
+        fields: [
+          { type: "mrkdwn", text: `*📦 ${item.name}*\n\`${item.sku}\`` },
+          { type: "mrkdwn", text: `*재고:* ${item.quantity}${item.unit}\n*기준:* ${item.minQuantity ?? 0}${item.unit}` },
+        ],
+      },
+    ];
+    if (warning) {
+      blocks.push({ type: "section", text: { type: "mrkdwn", text: warning } });
+    }
+    blocks.push({
+      type: "context",
+      elements: [{ type: "mrkdwn", text: `카테고리: ${item.category ?? "-"}` }],
+    });
+    return { response_type: "ephemeral", text: " ", blocks };
   } catch (error) {
     const msg = error instanceof Error ? error.message : "알 수 없는 에러";
     logger.error({ error: msg }, "재고 조회 실패");
