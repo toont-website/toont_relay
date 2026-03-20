@@ -1,5 +1,6 @@
 import { getCsToolClient } from "@/lib/cs-tool/client";
 import { logger } from "@/lib/logger";
+import { formatPhoneNumber } from "@/lib/utils/phone";
 
 /**
  * /dashboard — 운영 현황 대시보드
@@ -26,18 +27,18 @@ export async function handleDashboardCommand() {
     });
 
     if (items.length > 0) {
-      // 테이블 헤더
-      let stockTable = "*품목*  |  *SKU*  |  *재고*  |  *기준*  |  *상태*\n";
+      // 재고를 section fields로 표시 (2열 레이아웃)
       for (const item of items) {
         const isLow = item.minQuantity != null && item.quantity <= item.minQuantity;
-        const status = isLow ? "⚠️ 부족" : "✅";
-        const min = item.minQuantity != null ? `${item.minQuantity}${item.unit}` : "-";
-        stockTable += `${item.name}  |  \`${item.sku}\`  |  ${item.quantity}${item.unit}  |  ${min}  |  ${status}\n`;
+        const status = isLow ? "⚠️ 부족" : "✅ 정상";
+        blocks.push({
+          type: "section",
+          fields: [
+            { type: "mrkdwn", text: `*${item.name}*\n\`${item.sku}\`` },
+            { type: "mrkdwn", text: `*재고:* ${item.quantity}${item.unit} / 기준: ${item.minQuantity ?? 0}${item.unit}\n${status}` },
+          ],
+        });
       }
-      blocks.push({
-        type: "section",
-        text: { type: "mrkdwn", text: stockTable },
-      });
     } else {
       blocks.push({
         type: "section",
@@ -56,7 +57,6 @@ export async function handleDashboardCommand() {
     const activeOrders = orders.filter((o) => o.status !== "completed" && o.status !== "cancelled");
 
     if (activeOrders.length > 0) {
-      // 단계별 그룹핑
       const stageGroups: Record<string, typeof activeOrders> = {};
       for (const order of activeOrders) {
         const stage = order.currentStageName ?? order.status ?? "미지정";
@@ -65,15 +65,21 @@ export async function handleDashboardCommand() {
       }
 
       for (const [stage, stageOrders] of Object.entries(stageGroups)) {
-        let orderList = `*${stage}* (${stageOrders.length}건)\n`;
-        for (const order of stageOrders) {
-          const due = order.dueDate ? ` · 납기 ${order.dueDate}` : "";
-          orderList += `  • ${order.customerName} — ${order.itemDescription} x${order.quantity}${due}\n`;
-        }
         blocks.push({
           type: "section",
-          text: { type: "mrkdwn", text: orderList },
+          text: { type: "mrkdwn", text: `*${stage}* (${stageOrders.length}건)` },
         });
+        for (const order of stageOrders) {
+          const due = order.dueDate ? `납기 ${order.dueDate}` : "";
+          const phone = order.phone ? formatPhoneNumber(order.phone) : "";
+          blocks.push({
+            type: "section",
+            fields: [
+              { type: "mrkdwn", text: `*${order.customerName}*${phone ? `\n${phone}` : ""}` },
+              { type: "mrkdwn", text: `${order.itemDescription} x${order.quantity}${due ? `\n${due}` : ""}` },
+            ],
+          });
+        }
       }
     } else {
       blocks.push({

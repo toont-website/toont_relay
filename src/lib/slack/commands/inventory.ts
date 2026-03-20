@@ -17,14 +17,28 @@ export async function handleInventoryCommand(text: string) {
       const items = result.data ?? [];
       if (items.length === 0) return { text: "등록된 재고가 없어요." };
 
-      const list = items
-        .map((item) => {
-          const warning = item.minQuantity && item.quantity <= item.minQuantity ? " ⚠️" : "";
-          return `• *${item.name}* (${item.sku}) — ${item.quantity}${item.unit}${warning}`;
-        })
-        .join("\n");
+      const blocks: any[] = [
+        { type: "header", text: { type: "plain_text", text: "📦 재고 현황" } },
+      ];
 
-      return { text: `*📦 재고 현황* (${items.length}개)\n\n${list}` };
+      for (const item of items) {
+        const isLow = item.minQuantity != null && item.quantity <= item.minQuantity;
+        const status = isLow ? "⚠️ 부족" : "✅";
+        blocks.push({
+          type: "section",
+          fields: [
+            { type: "mrkdwn", text: `*${item.name}*\n\`${item.sku}\`` },
+            { type: "mrkdwn", text: `재고: *${item.quantity}${item.unit}* / 기준: ${item.minQuantity ?? 0}${item.unit} ${status}` },
+          ],
+        });
+      }
+
+      blocks.push({
+        type: "context",
+        elements: [{ type: "mrkdwn", text: `총 ${items.length}종` }],
+      });
+
+      return { response_type: "ephemeral", text: " ", blocks };
     }
 
     if (trimmed === "부족") {
@@ -32,11 +46,21 @@ export async function handleInventoryCommand(text: string) {
       const items = result.data ?? [];
       if (items.length === 0) return { text: "✅ 기준치 이하 재고가 없어요!" };
 
-      const list = items
-        .map((item) => `• ⚠️ *${item.name}* (${item.sku}) — ${item.quantity}/${item.minQuantity}${item.unit}`)
-        .join("\n");
+      const blocks: any[] = [
+        { type: "header", text: { type: "plain_text", text: "⚠️ 재고 부족 항목" } },
+      ];
 
-      return { text: `*⚠️ 재고 부족 항목* (${items.length}개)\n\n${list}` };
+      for (const item of items) {
+        blocks.push({
+          type: "section",
+          fields: [
+            { type: "mrkdwn", text: `*${item.name}*\n\`${item.sku}\`` },
+            { type: "mrkdwn", text: `재고: *${item.quantity}${item.unit}* / 기준: ${item.minQuantity}${item.unit}` },
+          ],
+        });
+      }
+
+      return { response_type: "ephemeral", text: " ", blocks };
     }
 
     // SKU 조회
