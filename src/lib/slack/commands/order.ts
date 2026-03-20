@@ -268,6 +268,27 @@ export async function handleOrderAddSubmission(payload: any) {
     };
   }
 
+  // 재고 사전 체크 (SKU가 있을 때만)
+  if (sku) {
+    try {
+      const client = getCsToolClient();
+      const invResult = await client.getInventory();
+      const items = invResult.data ?? [];
+      const stockItem = items.find((i) => i.sku === sku);
+
+      if (stockItem && stockItem.quantity < quantity) {
+        return {
+          response_action: "errors" as const,
+          errors: {
+            quantity_block: `재고가 부족해요. 현재 ${stockItem.quantity}${stockItem.unit}밖에 없는데 ${quantity}개를 주문할 수 없어요.`,
+          },
+        };
+      }
+    } catch {
+      // 재고 체크 실패해도 주문은 진행 (CS Tool에서 2차 차단)
+    }
+  }
+
   try {
     const client = getCsToolClient();
     const result = await client.createOrder({
