@@ -33,6 +33,7 @@ export interface CreateOrderParams {
   address?: string;
   dueDate?: string;
   channel?: string;
+  notes?: string;
 }
 
 export interface CreateOrderResponse {

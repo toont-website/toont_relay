@@ -24,11 +24,9 @@ export async function handleOrderCommand(text: string) {
     const filters: Record<string, string> = { limit: "10" };
     if (trimmed) {
       const statusMap: Record<string, string> = {
-        접수: "pending",
         대기: "pending",
-        제작: "in_progress",
+        "진행중": "in_progress",
         진행: "in_progress",
-        배송중: "in_progress",
         완료: "completed",
         취소: "cancelled",
       };
@@ -192,6 +190,18 @@ export async function handleOrderCreateCommand(triggerId: string) {
           placeholder: { type: "plain_text", text: "날짜 선택" },
         },
       },
+      {
+        type: "input",
+        block_id: "notes_block",
+        label: { type: "plain_text", text: "메모" },
+        optional: true,
+        element: {
+          type: "plain_text_input",
+          action_id: "notes_input",
+          multiline: true,
+          placeholder: { type: "plain_text", text: "특이사항, 요청사항 등" },
+        },
+      },
     );
 
     await slackClient.views.open({
@@ -226,6 +236,7 @@ export async function handleOrderAddSubmission(payload: any) {
   const quantity = parseInt(values.quantity_block.quantity_input.value, 10);
   const address = values.address_block?.address_input?.value ?? undefined;
   const dueDate = values.due_date_block?.due_date_input?.selected_date ?? undefined;
+  const notes = values.notes_block?.notes_input?.value ?? undefined;
 
   // 상품 — 드롭다운 또는 직접 입력
   let itemDescription: string;
@@ -299,6 +310,7 @@ export async function handleOrderAddSubmission(payload: any) {
       sku,
       address,
       dueDate,
+      notes,
       channel: "slack",
     });
 
