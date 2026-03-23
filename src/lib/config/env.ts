@@ -4,6 +4,7 @@ const envSchema = z.object({
   SLACK_BOT_TOKEN: z.string().startsWith("xoxb-"),
   SLACK_SIGNING_SECRET: z.string().min(1),
   SLACK_CHANNEL_CS_SMS: z.string().startsWith("C"),
+  SLACK_CHANNEL_ALERT: z.string().startsWith("C"),
   SMS_GATEWAY_URL: z.string().url(),
   SMS_GATEWAY_USERNAME: z.string().min(1),
   SMS_GATEWAY_PASSWORD: z.string().min(1),
@@ -17,6 +18,8 @@ const envSchema = z.object({
   SLACK_CHANNEL_ORDER: z.string().startsWith("C"),
   SLACK_CHANNEL_INVENTORY: z.string().startsWith("C"),
   SLACK_CHANNEL_OPERATION: z.string().startsWith("C"),
+  CRON_SECRET: z.string().min(1),
+  HEALTH_CHECK_DEVICE_THRESHOLD_MINUTES: z.coerce.number().int().min(1).default(30),
 });
 
 export type Env = z.infer<typeof envSchema>;

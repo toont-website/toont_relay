@@ -3,6 +3,7 @@ import { getEnv } from "@/lib/config/env";
 import type {
   SmsGatewaySendResponse,
   SmsGatewayMessageStatus,
+  SmsGatewayDevice,
 } from "./types";
 
 interface SmsGatewayClientConfig {
@@ -64,6 +65,27 @@ export class SmsGatewayClient {
 
     if (!response.ok) {
       throw new Error(`메시지 상태 조회 실패: ${response.status}`);
+    }
+
+    return response.json();
+  }
+
+  async getDevice(): Promise<SmsGatewayDevice> {
+    const response = await fetch(
+      `${this.baseUrl}/api/3rdparty/v1/device`,
+      {
+        headers: {
+          Authorization: `Basic ${this.basicAuth}`,
+        },
+        signal: AbortSignal.timeout(5000),
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(
+        `기기 상태 조회 실패: ${response.status} ${response.statusText} — ${errorText}`
+      );
     }
 
     return response.json();

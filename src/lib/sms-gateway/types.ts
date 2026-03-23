@@ -26,3 +26,12 @@ export interface SmsGatewayMessageStatus {
   id: string;
   state: "Pending" | "Processed" | "Sent" | "Delivered" | "Failed";
 }
+
+export interface SmsGatewayDevice {
+  id: string;
+  name: string;
+  lastSeen: string;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+}

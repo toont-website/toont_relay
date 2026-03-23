@@ -39,3 +39,15 @@ model MessageLog {
   @@index([createdAt])
   @@index([phoneNumber, slackThreadTs, createdAt])
 }
+
+model HealthCheckLog {
+  id             String    @id @default(cuid())
+  mysqlStatus    String    // "ok" | "error"
+  gatewayStatus  String    // "ok" | "error"
+  deviceStatus   String    // "ok" | "stale" | "error"
+  deviceLastSeen DateTime?
+  alertSent      Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+
+  @@index([createdAt])
+}
