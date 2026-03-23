@@ -230,9 +230,22 @@ export async function handleOrderCreateCommand(triggerId: string) {
 }
 
 /**
- * order_add_modal view_submission 처리
+ * order_add_modal view_submission — 검증만 (동기, 3초 내 응답)
  */
-export async function handleOrderAddSubmission(payload: any) {
+export interface ValidatedOrderAdd {
+  customerName: string;
+  phone: string;
+  itemDescription: string;
+  quantity: number;
+  sku?: string;
+  address?: string;
+  dueDate?: string;
+  notes?: string;
+}
+
+export async function validateOrderAdd(
+  payload: any
+): Promise<ValidatedOrderAdd | { response_action: "errors"; errors: Record<string, string> }> {
   const view = payload.view;
   const values = view.state.values;
 
@@ -284,26 +297,14 @@ export async function handleOrderAddSubmission(payload: any) {
     };
   }
 
-  // 재고 사전 체크 (SKU가 있을 때만)
-  if (sku) {
-    try {
-      const client = getCsToolClient();
-      const invResult = await client.getInventory();
-      const items = invResult.data ?? [];
-      const stockItem = items.find((i) => i.sku === sku);
+  return { customerName, phone, itemDescription, quantity, sku, address, dueDate, notes };
+}
 
-      if (stockItem && stockItem.quantity < quantity) {
-        return {
-          response_action: "errors" as const,
-          errors: {
-            quantity_block: `재고가 부족해요. 현재 ${stockItem.quantity}${stockItem.unit}밖에 없는데 ${quantity}개를 주문할 수 없어요.`,
-          },
-        };
-      }
-    } catch {
-      // 재고 체크 실패해도 주문은 진행 (CS Tool에서 2차 차단)
-    }
-  }
+/**
+ * order_add_modal — 주문 생성 실행 (비동기, after()에서 호출)
+ */
+export async function executeOrderAdd(data: ValidatedOrderAdd): Promise<void> {
+  const { customerName, phone, itemDescription, quantity, sku, address, dueDate, notes } = data;
 
   try {
     const client = getCsToolClient();
@@ -328,11 +329,5 @@ export async function handleOrderAddSubmission(payload: any) {
   } catch (error) {
     const msg = error instanceof Error ? error.message : "알 수 없는 에러";
     logger.error({ error: msg }, "주문 등록 실패");
-    return {
-      response_action: "errors" as const,
-      errors: { customer_block: `등록 실패: ${msg}` },
-    };
   }
-
-  return null;
 }

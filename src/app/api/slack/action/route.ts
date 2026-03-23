@@ -4,7 +4,7 @@ import { parseSlackRequest } from "@/lib/slack/verify";
 import { validateSmsSend, executeSmsSend } from "@/lib/slack/actions/sms-send";
 import { handleReplySms, handleRetrySms } from "@/lib/slack/actions/reply-sms";
 import { handleRegisterContact, handleRegisterContactSubmission } from "@/lib/slack/actions/register-contact";
-import { handleOrderAddSubmission } from "@/lib/slack/commands/order";
+import { validateOrderAdd, executeOrderAdd } from "@/lib/slack/commands/order";
 import { handleStockSubmission } from "@/lib/slack/commands/inventory";
 import { handleContactSelect } from "@/lib/slack/commands/sms";
 
@@ -18,8 +18,13 @@ export async function POST(request: NextRequest) {
   if (payload.type === "view_submission") {
     const callbackId = payload.view?.callback_id;
     if (callbackId === "order_add_modal") {
-      const response = await handleOrderAddSubmission(payload);
-      if (response) return NextResponse.json(response);
+      const result = await validateOrderAdd(payload);
+      if ("response_action" in result) {
+        return NextResponse.json(result);
+      }
+      after(async () => {
+        await executeOrderAdd(result);
+      });
       return new NextResponse(null, { status: 200 });
     }
     if (callbackId === "register_contact_modal") {
