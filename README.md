@@ -25,6 +25,7 @@
 SLACK_BOT_TOKEN=xoxb-...
 SLACK_SIGNING_SECRET=...
 SLACK_CHANNEL_CS_SMS=C0ALP2LKTR8
+SLACK_CHANNEL_ALERT=C0XXXXXXX        # 장애 알림 채널
 
 # SMS Gateway API (폰 앱 연결 후 자동 생성되는 크레덴셜)
 SMS_GATEWAY_URL=http://sms-backend:3080
@@ -42,6 +43,10 @@ MYSQL_ROOT_PASSWORD=...
 # App
 NODE_ENV=production
 APP_URL=https://relay.toont.co.kr
+
+# Health Check Monitoring
+CRON_SECRET=...                              # openssl rand -hex 32 로 생성
+HEALTH_CHECK_DEVICE_THRESHOLD_MINUTES=30     # 기기 stale 판단 임계값 (분)
 ```
 
 ## SMS Gateway (CS폰) 연결
@@ -77,12 +82,38 @@ APP_URL=https://relay.toont.co.kr
 ### 연결 상태 확인
 
 ```bash
-# 헬스체크 (mysql + smsGateway 둘 다 ok이면 정상)
+# 헬스체크 (mysql + smsGateway + device 모두 ok이면 정상)
 curl https://relay.toont.co.kr/api/health
 
 # SMS Gateway 로그
 docker compose logs sms-backend --tail 10
 ```
+
+### 기기 연결 모니터링 (자동 장애 알림)
+
+5분마다 MySQL, SMS Gateway, 기기(폰) 연결 상태를 체크하고, 장애/복구 시 슬랙으로 알림을 보냄.
+
+**설정:**
+
+1. `.env`에 환경변수 추가:
+   ```env
+   SLACK_CHANNEL_ALERT=C0XXXXXXX          # 장애 알림 받을 채널 ID
+   CRON_SECRET=$(openssl rand -hex 32)    # cron 인증용
+   HEALTH_CHECK_DEVICE_THRESHOLD_MINUTES=30
+   ```
+
+2. VM에서 crontab 등록:
+   ```bash
+   crontab -e
+   # 아래 줄 추가
+   */5 * * * * curl -sf http://localhost:3000/api/cron/health-monitor -H "Authorization: Bearer 너의_CRON_SECRET" > /dev/null 2>&1
+   ```
+
+**동작 방식:**
+- 이전 상태와 비교해서 **상태 전환 시에만** 알림 (스팸 방지)
+- 정상 → 장애: 빨간색 알림 + `@channel`
+- 장애 → 정상: 초록색 복구 알림 + 장애 지속 시간 표시
+- 7일 이상 된 로그 자동 정리
 
 ## 슬랙 커맨드
 
