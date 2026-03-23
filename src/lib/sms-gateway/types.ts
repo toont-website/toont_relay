@@ -33,5 +33,5 @@ export interface SmsGatewayDevice {
   lastSeen: string;
   createdAt: string;
   updatedAt: string;
-  deletedAt: string | null;
+  deletedAt?: string | null;
 }

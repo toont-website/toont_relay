@@ -88,7 +88,11 @@ export class SmsGatewayClient {
       );
     }
 
-    return response.json();
+    const data: SmsGatewayDevice[] = await response.json();
+    if (data.length === 0) {
+      throw new Error("등록된 기기가 없습니다");
+    }
+    return data[0];
   }
 
   verifyWebhookSignature(signature: string, body: string, timestamp: string): boolean {
