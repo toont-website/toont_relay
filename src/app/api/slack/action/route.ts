@@ -21,6 +21,12 @@ import {
   openOrderContactModal,
   handleOrderContactSubmit,
 } from "@/lib/slack/actions/order-contact";
+import {
+  handleCopyTemplate,
+  openTemplateSendModal,
+  validateTemplateSms,
+  executeTemplateSms,
+} from "@/lib/slack/actions/template-send";
 
 export async function POST(request: NextRequest) {
   const result = await parseSlackRequest(request);
@@ -64,6 +70,17 @@ export async function POST(request: NextRequest) {
     if (callbackId === "order_contact_modal") {
       const response = await handleOrderContactSubmit(payload);
       if (response) return NextResponse.json(response);
+      return new NextResponse(null, { status: 200 });
+    }
+    if (callbackId === "template_sms_modal") {
+      const result = await validateTemplateSms(payload);
+      if (result) return NextResponse.json(result);
+      return new NextResponse(null, { status: 200 });
+    }
+    if (callbackId === "template_sms_confirm") {
+      after(async () => {
+        await executeTemplateSms(payload);
+      });
       return new NextResponse(null, { status: 200 });
     }
     if (callbackId === "sms_send_modal") {
@@ -117,6 +134,25 @@ export async function POST(request: NextRequest) {
     if (actionId === "profile_select") {
       after(async () => {
         await handleProfileSelect(payload);
+      });
+      return new NextResponse(null, { status: 200 });
+    }
+    if (actionId === "copy_template") {
+      const orderId = payload.actions[0].value;
+      const channelId = payload.channel?.id ?? payload.container?.channel_id;
+      const userId = payload.user?.id;
+      if (channelId && userId) {
+        after(async () => {
+          await handleCopyTemplate(orderId, userId, channelId);
+        });
+      }
+      return new NextResponse(null, { status: 200 });
+    }
+    if (actionId === "send_template_sms") {
+      const triggerId = payload.trigger_id;
+      const orderId = payload.actions[0].value;
+      after(async () => {
+        await openTemplateSendModal(triggerId, orderId);
       });
       return new NextResponse(null, { status: 200 });
     }
