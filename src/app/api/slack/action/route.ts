@@ -3,10 +3,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { parseSlackRequest } from "@/lib/slack/verify";
 import { validateSmsSend, executeSmsSend } from "@/lib/slack/actions/sms-send";
 import { handleReplySms, handleRetrySms } from "@/lib/slack/actions/reply-sms";
-import { handleRegisterContact, handleRegisterContactSubmission } from "@/lib/slack/actions/register-contact";
 import { validateOrderAdd, executeOrderAdd } from "@/lib/slack/commands/order";
 import { handleStockSubmission } from "@/lib/slack/commands/inventory";
 import { handleContactSelect } from "@/lib/slack/commands/sms";
+import {
+  openContactAddModal,
+  handleContactAddSubmit,
+  openContactEditModal,
+  handleContactEditSubmit,
+} from "@/lib/slack/commands/contact";
 
 export async function POST(request: NextRequest) {
   const result = await parseSlackRequest(request);
@@ -27,8 +32,13 @@ export async function POST(request: NextRequest) {
       });
       return new NextResponse(null, { status: 200 });
     }
-    if (callbackId === "register_contact_modal") {
-      const response = await handleRegisterContactSubmission(payload);
+    if (callbackId === "contact_add_modal" || callbackId === "register_contact_modal") {
+      const response = await handleContactAddSubmit(payload);
+      if (response) return NextResponse.json(response);
+      return new NextResponse(null, { status: 200 });
+    }
+    if (callbackId === "contact_edit_modal") {
+      const response = await handleContactEditSubmit(payload);
       if (response) return NextResponse.json(response);
       return new NextResponse(null, { status: 200 });
     }
@@ -57,7 +67,19 @@ export async function POST(request: NextRequest) {
   if (payload.type === "block_actions") {
     const actionId = payload.actions?.[0]?.action_id;
     if (actionId === "register_contact") {
-      await handleRegisterContact(payload);
+      const triggerId = payload.trigger_id;
+      let phoneNumber: string | undefined;
+      try {
+        const parsed = JSON.parse(payload.actions[0].value);
+        phoneNumber = parsed.phoneNumber;
+      } catch { /* ignore */ }
+      await openContactAddModal(triggerId, phoneNumber);
+      return new NextResponse(null, { status: 200 });
+    }
+    if (actionId === "edit_contact") {
+      const triggerId = payload.trigger_id;
+      const contactId = payload.actions[0].value;
+      await openContactEditModal(triggerId, contactId);
       return new NextResponse(null, { status: 200 });
     }
     if (actionId === "contact_select") {

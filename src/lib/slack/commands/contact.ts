@@ -1,110 +1,463 @@
-import { prisma } from "@/lib/db/prisma";
-import { normalizePhoneNumber, formatPhoneNumber } from "@/lib/utils/phone";
+import { getCsToolClient } from "@/lib/cs-tool/client";
+import { getSlackClient } from "@/lib/slack/client";
+import { formatPhoneNumber, normalizePhoneNumber } from "@/lib/utils/phone";
+import { logger } from "@/lib/logger";
+import type { CsContact, ContactType } from "@/lib/cs-tool/types";
 
 /**
  * /contact 커맨드 핸들러
- * - /contact → 전체 연락처 목록
- * - /contact 이름 010-1234-5678 → 추가
- * - /contact 이름 010-1234-5678 메모내용 → 메모 포함 추가
- * - /contact 삭제 이름 → 삭제
+ * - /contact → 전체 연락처 목록 (타입별 그룹)
+ * - /contact [검색어] → 검색
+ * - /contact 추가 → 등록 모달 (trigger_id 필요, 커맨드 라우트에서 처리)
+ * - /contact 삭제 [이름] → 검색 + 삭제
+ * - /contact 수정 [이름] → 검색 + 수정 버튼
  */
 export async function handleContactCommand(text: string) {
   const trimmed = text.trim();
 
-  // 인자 없으면 목록
   if (!trimmed) {
     return listContacts();
   }
 
-  // 삭제
+  if (trimmed === "추가") {
+    return { text: "연락처 추가는 모달로 처리됩니다. (trigger_id 필요)" };
+  }
+
   if (trimmed.startsWith("삭제 ")) {
-    const name = trimmed.slice(3).trim();
-    return deleteContact(name);
+    const query = trimmed.slice(3).trim();
+    return deleteContact(query);
   }
 
-  // 추가: 이름 번호 [메모]
-  const parts = trimmed.split(/\s+/);
-  if (parts.length < 2) {
-    return { text: "사용법:\n• `/contact` — 연락처 목록\n• `/contact 이름 번호 [메모]` — 추가\n• `/contact 삭제 이름` — 삭제" };
+  if (trimmed.startsWith("수정 ")) {
+    const query = trimmed.slice(3).trim();
+    return editContactSearch(query);
   }
 
-  const name = parts[0];
-  const phoneInput = parts[1];
-  const memo = parts.slice(2).join(" ") || null;
-
-  const phoneNumber = normalizePhoneNumber(phoneInput);
-  if (!phoneNumber) {
-    return { text: `유효하지 않은 전화번호: ${phoneInput}` };
-  }
-
-  try {
-    const contact = await prisma.contact.upsert({
-      where: { phoneNumber },
-      update: { name, memo },
-      create: { name, phoneNumber, memo },
-    });
-
-    return {
-      text: `연락처 저장: ${contact.name} (${formatPhoneNumber(contact.phoneNumber)})${memo ? ` — ${memo}` : ""}`,
-    };
-  } catch (error) {
-    return { text: `연락처 저장 실패: ${error instanceof Error ? error.message : "알 수 없는 에러"}` };
-  }
+  return searchContacts(trimmed);
 }
 
-async function listContacts() {
-  const contacts = await prisma.contact.findMany({
-    orderBy: { name: "asc" },
-    take: 50,
-  });
+/**
+ * 연락처 등록 모달 열기
+ */
+export async function openContactAddModal(triggerId: string, prefillPhone?: string) {
+  const client = getSlackClient();
+  const csClient = getCsToolClient();
 
-  if (contacts.length === 0) {
-    return { text: "등록된 연락처가 없어요." };
+  let typeOptions: { text: { type: "plain_text"; text: string }; value: string }[] = [];
+  try {
+    const res = await csClient.getContactTypes();
+    typeOptions = (res.data ?? []).map((t) => ({
+      text: { type: "plain_text" as const, text: t.name },
+      value: t.id,
+    }));
+  } catch (e) {
+    logger.error({ error: e }, "연락처 타입 조회 실패");
   }
 
   const blocks: any[] = [
-    { type: "header", text: { type: "plain_text", text: "📇 연락처 목록" } },
+    {
+      type: "input",
+      block_id: "name_block",
+      label: { type: "plain_text", text: "이름" },
+      element: { type: "plain_text_input", action_id: "name_input" },
+    },
   ];
 
-  for (const c of contacts) {
+  if (typeOptions.length > 0) {
     blocks.push({
-      type: "section",
-      fields: [
-        { type: "mrkdwn", text: `*${c.name}*\n${formatPhoneNumber(c.phoneNumber)}` },
-        { type: "mrkdwn", text: c.memo ?? "_메모 없음_" },
-      ],
+      type: "input",
+      block_id: "type_block",
+      label: { type: "plain_text", text: "분류" },
+      optional: true,
+      element: {
+        type: "static_select",
+        action_id: "type_input",
+        placeholder: { type: "plain_text", text: "분류 선택..." },
+        options: typeOptions,
+      },
     });
   }
 
-  blocks.push({
-    type: "context",
-    elements: [{ type: "mrkdwn", text: `총 ${contacts.length}명` }],
-  });
+  blocks.push(
+    {
+      type: "input",
+      block_id: "phone_block",
+      label: { type: "plain_text", text: "전화번호" },
+      optional: true,
+      element: {
+        type: "plain_text_input",
+        action_id: "phone_input",
+        ...(prefillPhone ? { initial_value: formatPhoneNumber(prefillPhone) } : {}),
+      },
+    },
+    {
+      type: "input",
+      block_id: "address_block",
+      label: { type: "plain_text", text: "주소" },
+      optional: true,
+      element: { type: "plain_text_input", action_id: "address_input" },
+    },
+    {
+      type: "input",
+      block_id: "memo_block",
+      label: { type: "plain_text", text: "메모" },
+      optional: true,
+      element: { type: "plain_text_input", action_id: "memo_input" },
+    },
+  );
 
-  return { response_type: "ephemeral" as const, text: " ", blocks };
+  await client.views.open({
+    trigger_id: triggerId,
+    view: {
+      type: "modal",
+      callback_id: "contact_add_modal",
+      private_metadata: JSON.stringify({ prefillPhone: prefillPhone ?? null }),
+      title: { type: "plain_text", text: "연락처 등록" },
+      submit: { type: "plain_text", text: "등록" },
+      close: { type: "plain_text", text: "취소" },
+      blocks,
+    },
+  });
 }
 
-async function deleteContact(input: string) {
-  // 전화번호로 삭제 시도
-  const normalized = normalizePhoneNumber(input);
-  const contacts = normalized
-    ? await prisma.contact.findMany({ where: { phoneNumber: normalized } })
-    : await prisma.contact.findMany({ where: { name: { contains: input } } });
+/**
+ * 연락처 등록 모달 제출 처리
+ */
+export async function handleContactAddSubmit(payload: any) {
+  const values = payload.view.state.values;
+  const name = values.name_block?.name_input?.value;
+  const typeId = values.type_block?.type_input?.selected_option?.value ?? undefined;
+  const phoneRaw = values.phone_block?.phone_input?.value ?? undefined;
+  const address = values.address_block?.address_input?.value ?? undefined;
+  const memo = values.memo_block?.memo_input?.value ?? undefined;
 
-  if (contacts.length === 0) {
-    return { text: `"${name}" 검색 결과 없음.` };
+  if (!name) {
+    return {
+      response_action: "errors" as const,
+      errors: { name_block: "이름을 입력하세요" },
+    };
   }
 
-  if (contacts.length > 1) {
-    const list = contacts.map((c) => `• ${c.name} (${formatPhoneNumber(c.phoneNumber)})`).join("\n");
-    return { text: `"${input}" 이름의 연락처가 ${contacts.length}명 있어요. 정확한 이름이나 전화번호로 다시 입력해주세요!\n\n${list}\n\n예: \`/contact 삭제 010-1234-5678\`` };
+  const phone = phoneRaw ? (normalizePhoneNumber(phoneRaw) ?? undefined) : undefined;
+  if (phoneRaw && !phone) {
+    return {
+      response_action: "errors" as const,
+      errors: { phone_block: "유효하지 않은 전화번호입니다" },
+    };
   }
 
-  // 메시지 로그의 FK 참조 해제 후 삭제
-  await prisma.messageLog.updateMany({
-    where: { contactId: contacts[0].id },
-    data: { contactId: null },
+  try {
+    await getCsToolClient().createContact({ name, typeId, phone, address, memo });
+    logger.info({ name, phone }, "연락처 등록 완료 (CS Tool)");
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "알 수 없는 에러";
+    logger.error({ error: msg }, "연락처 등록 실패");
+    return {
+      response_action: "errors" as const,
+      errors: { name_block: `등록 실패: ${msg}` },
+    };
+  }
+
+  return null;
+}
+
+/**
+ * 연락처 수정 모달 열기
+ */
+export async function openContactEditModal(triggerId: string, contactId: string) {
+  const client = getSlackClient();
+  const csClient = getCsToolClient();
+
+  let contact: CsContact;
+  try {
+    const res = await csClient.getContact(contactId);
+    contact = res.data!;
+  } catch (e) {
+    logger.error({ error: e, contactId }, "연락처 조회 실패");
+    return;
+  }
+
+  let typeOptions: { text: { type: "plain_text"; text: string }; value: string }[] = [];
+  try {
+    const res = await csClient.getContactTypes();
+    typeOptions = (res.data ?? []).map((t) => ({
+      text: { type: "plain_text" as const, text: t.name },
+      value: t.id,
+    }));
+  } catch (e) {
+    logger.error({ error: e }, "연락처 타입 조회 실패");
+  }
+
+  const blocks: any[] = [
+    {
+      type: "input",
+      block_id: "name_block",
+      label: { type: "plain_text", text: "이름" },
+      element: {
+        type: "plain_text_input",
+        action_id: "name_input",
+        initial_value: contact.name,
+      },
+    },
+  ];
+
+  if (typeOptions.length > 0) {
+    const currentType = typeOptions.find((o) => o.value === contact.typeId);
+    blocks.push({
+      type: "input",
+      block_id: "type_block",
+      label: { type: "plain_text", text: "분류" },
+      optional: true,
+      element: {
+        type: "static_select",
+        action_id: "type_input",
+        placeholder: { type: "plain_text", text: "분류 선택..." },
+        options: typeOptions,
+        ...(currentType ? { initial_option: currentType } : {}),
+      },
+    });
+  }
+
+  blocks.push(
+    {
+      type: "input",
+      block_id: "phone_block",
+      label: { type: "plain_text", text: "전화번호" },
+      optional: true,
+      element: {
+        type: "plain_text_input",
+        action_id: "phone_input",
+        ...(contact.phone ? { initial_value: formatPhoneNumber(contact.phone) } : {}),
+      },
+    },
+    {
+      type: "input",
+      block_id: "address_block",
+      label: { type: "plain_text", text: "주소" },
+      optional: true,
+      element: {
+        type: "plain_text_input",
+        action_id: "address_input",
+        ...(contact.address ? { initial_value: contact.address } : {}),
+      },
+    },
+    {
+      type: "input",
+      block_id: "memo_block",
+      label: { type: "plain_text", text: "메모" },
+      optional: true,
+      element: {
+        type: "plain_text_input",
+        action_id: "memo_input",
+        ...(contact.memo ? { initial_value: contact.memo } : {}),
+      },
+    },
+  );
+
+  await client.views.open({
+    trigger_id: triggerId,
+    view: {
+      type: "modal",
+      callback_id: "contact_edit_modal",
+      private_metadata: JSON.stringify({ contactId }),
+      title: { type: "plain_text", text: "연락처 수정" },
+      submit: { type: "plain_text", text: "저장" },
+      close: { type: "plain_text", text: "취소" },
+      blocks,
+    },
   });
-  await prisma.contact.delete({ where: { id: contacts[0].id } });
-  return { text: `연락처 삭제: ${contacts[0].name} (${formatPhoneNumber(contacts[0].phoneNumber)})` };
+}
+
+/**
+ * 연락처 수정 모달 제출 처리
+ */
+export async function handleContactEditSubmit(payload: any) {
+  const { contactId } = JSON.parse(payload.view.private_metadata);
+  const values = payload.view.state.values;
+  const name = values.name_block?.name_input?.value ?? undefined;
+  const typeId = values.type_block?.type_input?.selected_option?.value ?? undefined;
+  const phoneRaw = values.phone_block?.phone_input?.value ?? undefined;
+  const address = values.address_block?.address_input?.value ?? undefined;
+  const memo = values.memo_block?.memo_input?.value ?? undefined;
+
+  const phone = phoneRaw ? (normalizePhoneNumber(phoneRaw) ?? undefined) : undefined;
+  if (phoneRaw && !phone) {
+    return {
+      response_action: "errors" as const,
+      errors: { phone_block: "유효하지 않은 전화번호입니다" },
+    };
+  }
+
+  try {
+    await getCsToolClient().updateContact(contactId, { name, typeId, phone, address, memo });
+    logger.info({ contactId, name }, "연락처 수정 완료 (CS Tool)");
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "알 수 없는 에러";
+    logger.error({ error: msg }, "연락처 수정 실패");
+    return {
+      response_action: "errors" as const,
+      errors: { name_block: `수정 실패: ${msg}` },
+    };
+  }
+
+  return null;
+}
+
+// ── 내부 함수 ──
+
+async function listContacts() {
+  try {
+    const res = await getCsToolClient().getContacts({ limit: "100" });
+    const contacts = res.data ?? [];
+
+    if (contacts.length === 0) {
+      return { text: "등록된 연락처가 없어요." };
+    }
+
+    // 타입별 그룹핑
+    const grouped = new Map<string, CsContact[]>();
+    for (const c of contacts) {
+      const key = c.typeName || "미분류";
+      const list = grouped.get(key) ?? [];
+      grouped.set(key, [...list, c]);
+    }
+
+    const blocks: any[] = [
+      { type: "header", text: { type: "plain_text", text: "연락처 목록" } },
+    ];
+
+    for (const [typeName, members] of grouped) {
+      blocks.push({
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `*[${typeName}]*`,
+        },
+      });
+
+      for (const c of members) {
+        const phone = c.phone ? formatPhoneNumber(c.phone) : "-";
+        const memo = c.memo ?? "";
+        const addr = c.address ? ` | ${c.address}` : "";
+        blocks.push({
+          type: "section",
+          fields: [
+            { type: "mrkdwn", text: `*${c.name}*\n${phone}` },
+            { type: "mrkdwn", text: memo ? `${memo}${addr}` : addr || "_메모 없음_" },
+          ],
+        });
+      }
+    }
+
+    blocks.push({
+      type: "context",
+      elements: [{ type: "mrkdwn", text: `총 ${contacts.length}명` }],
+    });
+
+    return { response_type: "ephemeral" as const, text: " ", blocks };
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "알 수 없는 에러";
+    return { text: `연락처 목록 조회 실패: ${msg}` };
+  }
+}
+
+async function searchContacts(query: string) {
+  try {
+    const res = await getCsToolClient().getContacts({ search: query, limit: "20" });
+    const contacts = res.data ?? [];
+
+    if (contacts.length === 0) {
+      return { text: `"${query}" 검색 결과 없음.` };
+    }
+
+    const blocks: any[] = [
+      { type: "header", text: { type: "plain_text", text: `"${query}" 검색 결과` } },
+    ];
+
+    for (const c of contacts) {
+      const phone = c.phone ? formatPhoneNumber(c.phone) : "-";
+      blocks.push({
+        type: "section",
+        fields: [
+          { type: "mrkdwn", text: `*${c.name}* (${c.typeName})` },
+          { type: "mrkdwn", text: `${phone}${c.memo ? ` — ${c.memo}` : ""}` },
+        ],
+      });
+    }
+
+    blocks.push({
+      type: "context",
+      elements: [{ type: "mrkdwn", text: `${contacts.length}건` }],
+    });
+
+    return { response_type: "ephemeral" as const, text: " ", blocks };
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "알 수 없는 에러";
+    return { text: `연락처 검색 실패: ${msg}` };
+  }
+}
+
+async function deleteContact(query: string) {
+  try {
+    const res = await getCsToolClient().getContacts({ search: query, limit: "10" });
+    const contacts = res.data ?? [];
+
+    if (contacts.length === 0) {
+      return { text: `"${query}" 검색 결과 없음.` };
+    }
+
+    if (contacts.length > 1) {
+      const list = contacts
+        .map((c) => `- ${c.name} (${c.phone ? formatPhoneNumber(c.phone) : "-"})`)
+        .join("\n");
+      return {
+        text: `"${query}" 이름의 연락처가 ${contacts.length}명 있어요. 정확한 이름으로 다시 입력해주세요!\n\n${list}`,
+      };
+    }
+
+    const target = contacts[0];
+    await getCsToolClient().deleteContact(target.id);
+    const phone = target.phone ? formatPhoneNumber(target.phone) : "-";
+    return { text: `연락처 삭제: ${target.name} (${phone})` };
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "알 수 없는 에러";
+    return { text: `연락처 삭제 실패: ${msg}` };
+  }
+}
+
+async function editContactSearch(query: string) {
+  try {
+    const res = await getCsToolClient().getContacts({ search: query, limit: "10" });
+    const contacts = res.data ?? [];
+
+    if (contacts.length === 0) {
+      return { text: `"${query}" 검색 결과 없음.` };
+    }
+
+    const blocks: any[] = [
+      {
+        type: "section",
+        text: { type: "mrkdwn", text: `*"${query}" 수정 대상 선택:*` },
+      },
+    ];
+
+    for (const c of contacts) {
+      const phone = c.phone ? formatPhoneNumber(c.phone) : "-";
+      blocks.push({
+        type: "section",
+        text: { type: "mrkdwn", text: `*${c.name}* (${c.typeName}) — ${phone}` },
+        accessory: {
+          type: "button",
+          text: { type: "plain_text", text: "수정" },
+          action_id: "edit_contact",
+          value: c.id,
+        },
+      });
+    }
+
+    return { response_type: "ephemeral" as const, text: " ", blocks };
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "알 수 없는 에러";
+    return { text: `연락처 검색 실패: ${msg}` };
+  }
 }
