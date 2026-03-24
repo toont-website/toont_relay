@@ -9,6 +9,16 @@ import type {
   InventoryItem,
   StockChangeParams,
   OperationBoard,
+  CsContact,
+  CreateContactParams,
+  UpdateContactParams,
+  ContactType,
+  CreateContactTypeParams,
+  OrderContact,
+  Profile,
+  UpdateProfileParams,
+  Stage,
+  UpdateStageParams,
 } from "./types";
 
 class CsToolClient {
@@ -105,8 +115,78 @@ class CsToolClient {
     return this.request<OperationBoard>("GET", "/operations", undefined, filters);
   }
 
-  async changeStage(orderId: string, stageId: string): Promise<CsToolResponse<Order>> {
-    return this.request<Order>("PATCH", `/operations/${orderId}/status`, { stageId });
+  async updateOperationStatus(orderId: string, params: UpdateStageParams): Promise<CsToolResponse<void>> {
+    return this.request<void>("PATCH", `/operations/${orderId}/status`, params);
+  }
+
+  // 연락처
+  async getContacts(filters?: {
+    type?: string;
+    search?: string;
+    page?: string;
+    limit?: string;
+  }): Promise<CsToolResponse<CsContact[]>> {
+    return this.request<CsContact[]>("GET", "/contacts", undefined, filters);
+  }
+
+  async getContact(id: string): Promise<CsToolResponse<CsContact>> {
+    return this.request<CsContact>("GET", `/contacts/${id}`);
+  }
+
+  async createContact(params: CreateContactParams): Promise<CsToolResponse<CsContact>> {
+    return this.request<CsContact>("POST", "/contacts", params);
+  }
+
+  async updateContact(id: string, params: UpdateContactParams): Promise<CsToolResponse<CsContact>> {
+    return this.request<CsContact>("PATCH", `/contacts/${id}`, params);
+  }
+
+  async deleteContact(id: string): Promise<CsToolResponse<void>> {
+    return this.request<void>("DELETE", `/contacts/${id}`);
+  }
+
+  // 연락처 타입
+  async getContactTypes(): Promise<CsToolResponse<ContactType[]>> {
+    return this.request<ContactType[]>("GET", "/contact-types");
+  }
+
+  async createContactType(params: CreateContactTypeParams): Promise<CsToolResponse<ContactType>> {
+    return this.request<ContactType>("POST", "/contact-types", params);
+  }
+
+  async deleteContactType(id: string): Promise<CsToolResponse<void>> {
+    return this.request<void>("DELETE", `/contact-types/${id}`);
+  }
+
+  // 주문 연락처
+  async getOrderContacts(orderId: string): Promise<CsToolResponse<OrderContact[]>> {
+    return this.request<OrderContact[]>("GET", `/orders/${orderId}/contacts`);
+  }
+
+  async assignOrderContact(orderId: string, contactId: string): Promise<CsToolResponse<void>> {
+    return this.request<void>("POST", `/orders/${orderId}/contacts`, { contactId });
+  }
+
+  async removeOrderContact(orderId: string, contactTypeId: string): Promise<CsToolResponse<void>> {
+    return this.request<void>("DELETE", `/orders/${orderId}/contacts/${contactTypeId}`);
+  }
+
+  // 프로필
+  async getProfiles(): Promise<CsToolResponse<Profile[]>> {
+    return this.request<Profile[]>("GET", "/profiles");
+  }
+
+  async getProfile(id: string): Promise<CsToolResponse<Profile>> {
+    return this.request<Profile>("GET", `/profiles/${id}`);
+  }
+
+  async updateProfile(id: string, params: UpdateProfileParams): Promise<CsToolResponse<Profile>> {
+    return this.request<Profile>("PATCH", `/profiles/${id}`, params);
+  }
+
+  // 단계
+  async getStages(): Promise<CsToolResponse<Stage[]>> {
+    return this.request<Stage[]>("GET", "/stages");
   }
 }
 
