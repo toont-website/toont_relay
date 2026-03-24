@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/health-monitor",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/deadline-check",
+      "schedule": "0 0 * * *"
+    }
+  ]
+}
