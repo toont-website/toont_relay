@@ -597,6 +597,7 @@ export async function executeOrderAdd(data: ValidatedOrderAdd): Promise<void> {
       quantity,
       phone,
       sku,
+      skus: sku ? [sku] : undefined,
       address,
       dueDate,
       notes,
@@ -624,6 +625,9 @@ export async function executeOrderAdd(data: ValidatedOrderAdd): Promise<void> {
     logger.info({ customerName, itemDescription, quantity, sku, profileId, contactCount: contactIds.length }, "주문 등록 완료");
   } catch (error) {
     const msg = error instanceof Error ? error.message : "알 수 없는 에러";
+    if (msg.includes("INVALID_PROFILE")) {
+      logger.error({ profileId }, "유효하지 않은 프로필");
+    }
     logger.error({ error: msg }, "주문 등록 실패");
   }
 }

@@ -7,6 +7,7 @@ import type {
   CreateOrderResponse,
   UpdateOrderParams,
   InventoryItem,
+  InventoryDetailResponse,
   StockChangeParams,
   OperationBoard,
   CsContact,
@@ -95,8 +96,8 @@ class CsToolClient {
     return this.request<InventoryItem[]>("GET", "/inventory", undefined, filters);
   }
 
-  async getInventoryBySku(sku: string): Promise<CsToolResponse<InventoryItem>> {
-    return this.request<InventoryItem>("GET", `/inventory/${sku}`);
+  async getInventoryBySku(sku: string): Promise<CsToolResponse<InventoryDetailResponse>> {
+    return this.request<InventoryDetailResponse>("GET", `/inventory/${sku}`);
   }
 
   async inbound(params: StockChangeParams): Promise<CsToolResponse<InventoryItem>> {

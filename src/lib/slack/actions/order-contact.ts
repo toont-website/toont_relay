@@ -55,7 +55,17 @@ export async function handleOrderContactSubmit(payload: any) {
     try {
       const parsed = JSON.parse(selected);
       if (parsed.id === "__direct_input__") continue;
-      await client.assignOrderContact(orderId, parsed.id);
+
+      try {
+        await client.assignOrderContact(orderId, parsed.id);
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : "";
+        if (msg.includes("CONTACT_TYPE_MISMATCH") || msg.includes("422")) {
+          logger.warn({ orderId, contactId: parsed.id }, "연락처 타입 불일치 — 배정 스킵");
+          continue;
+        }
+        throw error;
+      }
     } catch (error) {
       logger.warn({ orderId, blockId, error }, "연락처 배정 개별 실패");
     }

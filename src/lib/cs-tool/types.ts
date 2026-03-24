@@ -11,9 +11,12 @@ export interface Order {
   id: string;
   orderId?: string;
   customerName: string;
-  itemDescription: string;
+  itemDescription: string | null;
   quantity: number;
   phone: string;
+  sku: string | null;
+  skus: string[];
+  skuQuantities: Record<string, number>;
   address?: string;
   status: string;
   dueDate?: string;
@@ -41,6 +44,8 @@ export interface CreateOrderParams {
   quantity: number;
   phone: string;
   sku?: string;
+  skus?: string[];
+  skuQuantities?: Record<string, number>;
   address?: string;
   dueDate?: string;
   channel?: string;
@@ -70,12 +75,32 @@ export interface UpdateOrderParams {
 // 재고
 export interface InventoryItem {
   id: string;
+  orgId: string;
   name: string;
   sku: string;
   quantity: number;
-  minQuantity?: number;
+  minQuantity: number;
   unit: string;
   category?: string;
+  price: number | null;
+  notes: string | null;
+  isLowStock: boolean;
+}
+
+export interface InventoryLog {
+  id: string;
+  inventoryItemId: string;
+  changeType: "in" | "out" | "adjust";
+  changeQuantity: number;
+  reason: string | null;
+  orderId: string | null;
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface InventoryDetailResponse {
+  item: InventoryItem;
+  recentLogs: InventoryLog[];
 }
 
 export interface StockChangeParams {
@@ -107,6 +132,7 @@ export interface UpdateStageParams {
 // 연락처
 export interface CsContact {
   id: string;
+  orgId: string;
   typeId: string;
   typeName: string;
   typeSlug: string;
@@ -136,9 +162,11 @@ export interface UpdateContactParams {
 
 export interface ContactType {
   id: string;
+  orgId: string;
   name: string;
   slug: string;
   isDefault: boolean;
+  createdAt: string;
 }
 
 export interface CreateContactTypeParams {
@@ -163,6 +191,7 @@ export interface RequiredContactType {
 // 프로필
 export interface Profile {
   id: string;
+  orgId: string;
   name: string;
   description: string | null;
   isDefault: boolean;
