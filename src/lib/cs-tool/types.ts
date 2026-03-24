@@ -61,6 +61,10 @@ export interface UpdateOrderParams {
   status?: string;
   notes?: string;
   templateVariables?: Record<string, string>;
+  checklistStatus?: Array<{
+    stageId: string;
+    items: Array<{ id: string; checked?: boolean; value?: string }>;
+  }>;
 }
 
 // 재고

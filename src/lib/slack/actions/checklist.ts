@@ -109,10 +109,18 @@ export async function handleChecklistSubmit(payload: any) {
   }
 
   const client = getCsToolClient();
-  await client.updateOrder(orderId, {
-    checklistStatus: [{ stageId, items }],
-  } as any);
-
-  logger.info({ orderId, stageId, itemCount: items.length }, "체크리스트 저장");
-  return null;
+  try {
+    await client.updateOrder(orderId, {
+      checklistStatus: [{ stageId, items }],
+    });
+    logger.info({ orderId, stageId, itemCount: items.length }, "체크리스트 저장");
+    return null;
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "알 수 없는 에러";
+    logger.error({ orderId, stageId, error: msg }, "체크리스트 저장 실패");
+    return {
+      response_action: "errors" as const,
+      errors: { [`check_${items[0]?.id ?? "unknown"}`]: `저장 실패: ${msg}` },
+    };
+  }
 }

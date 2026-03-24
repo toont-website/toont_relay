@@ -178,9 +178,7 @@ export async function POST(request: NextRequest) {
     if (actionId === "send_template_sms") {
       const triggerId = payload.trigger_id;
       const orderId = payload.actions[0].value;
-      after(async () => {
-        await openTemplateSendModal(triggerId, orderId);
-      });
+      await openTemplateSendModal(triggerId, orderId);
       return new NextResponse(null, { status: 200 });
     }
     if (actionId === "edit_profile") {
@@ -204,9 +202,7 @@ export async function POST(request: NextRequest) {
     if (actionId === "assign_order_contact") {
       const triggerId = payload.trigger_id;
       const orderId = payload.actions[0].value;
-      after(async () => {
-        await openOrderContactModal(triggerId, orderId);
-      });
+      await openOrderContactModal(triggerId, orderId);
       return new NextResponse(null, { status: 200 });
     }
     if (actionId === "view_order_detail") {

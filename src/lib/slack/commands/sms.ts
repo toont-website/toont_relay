@@ -129,8 +129,17 @@ export async function handleContactSelect(payload: any) {
   const selectedOption = payload.actions?.[0]?.selected_option;
   if (!selectedOption) return;
 
-  const phoneNumber = selectedOption.value;
-  const displayText = selectedOption.text?.text ?? phoneNumber;
+  // cs-contacts options의 value는 JSON.stringify({ id, phone, name }) 형태
+  let phoneNumber: string;
+  let contactName: string | null = null;
+  try {
+    const parsed = JSON.parse(selectedOption.value);
+    phoneNumber = parsed.phone ?? selectedOption.value;
+    contactName = parsed.name ?? null;
+  } catch {
+    phoneNumber = selectedOption.value;
+  }
+  const displayText = selectedOption.text?.text ?? contactName ?? phoneNumber;
   const viewId = payload.view?.id;
   if (!viewId) return;
 

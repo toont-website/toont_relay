@@ -192,13 +192,21 @@ export async function handleProfileEditSubmit(payload: any) {
   ).map((o: any) => o.value);
 
   const client = getCsToolClient();
-  await client.updateProfile(profileId, {
-    name,
-    description,
-    isDefault,
-    contactTypeIds,
-  });
-
-  logger.info({ profileId, name }, "프로필 수정 완료");
-  return null;
+  try {
+    await client.updateProfile(profileId, {
+      name,
+      description,
+      isDefault,
+      contactTypeIds,
+    });
+    logger.info({ profileId, name }, "프로필 수정 완료");
+    return null;
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "알 수 없는 에러";
+    logger.error({ profileId, error: msg }, "프로필 수정 실패");
+    return {
+      response_action: "errors" as const,
+      errors: { name_block: `저장 실패: ${msg}` },
+    };
+  }
 }

@@ -12,8 +12,10 @@ const STAGE_EMOJI: Record<string, string> = {
 function isDeadlineApproaching(deadline: string | null): boolean {
   if (!deadline) return false;
   const d = new Date(deadline);
-  const tomorrow = new Date();
+  const now = new Date(Date.now() + 9 * 60 * 60 * 1000); // KST
+  const tomorrow = new Date(now);
   tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(0, 0, 0, 0);
   return d <= tomorrow;
 }
 
