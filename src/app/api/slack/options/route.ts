@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { parseSlackRequest } from "@/lib/slack/verify";
-import { searchContacts } from "@/lib/slack/options/contacts";
+import { searchContacts } from "@/lib/slack/options/cs-contacts";
 
 export async function POST(request: NextRequest) {
   const result = await parseSlackRequest(request);

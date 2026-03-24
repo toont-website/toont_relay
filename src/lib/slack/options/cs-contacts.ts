@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/db/prisma";
+import { getCsToolClient } from "@/lib/cs-tool/client";
 import { formatPhoneNumber, normalizePhoneNumber } from "@/lib/utils/phone";
 import { logger } from "@/lib/logger";
 
@@ -11,27 +11,26 @@ export async function searchContacts(query: string) {
     return { options: [] };
   }
 
-  let contacts: { id: string; name: string; phoneNumber: string; memo: string | null }[] = [];
+  let contacts: { id: string; name: string; phone: string }[] = [];
   try {
-    contacts = await prisma.contact.findMany({
-      where: {
-        OR: [
-          { name: { contains: query } },
-          { phoneNumber: { contains: query } },
-        ],
-      },
-      take: 10,
-      orderBy: { name: "asc" },
-    });
-    logger.debug({ query, count: contacts.length }, "연락처 검색");
+    const res = await getCsToolClient().getContacts({ search: query, limit: "10" });
+    contacts = (res.data ?? []).map((c) => ({
+      id: c.id,
+      name: c.name,
+      phone: c.phone,
+    }));
+    logger.debug({ query, count: contacts.length }, "연락처 검색 (CS Tool)");
   } catch (e) {
-    logger.error({ error: e }, "연락처 검색 DB 에러");
+    logger.error({ error: e }, "연락처 검색 CS Tool API 에러");
     contacts = [];
   }
 
   const options = contacts.map((c) => ({
-    text: { type: "plain_text" as const, text: `${c.name} (${formatPhoneNumber(c.phoneNumber)})` },
-    value: c.phoneNumber,
+    text: {
+      type: "plain_text" as const,
+      text: `${c.name} (${formatPhoneNumber(c.phone)})`,
+    },
+    value: JSON.stringify({ id: c.id, phone: c.phone, name: c.name }),
   }));
 
   const normalized = normalizePhoneNumber(query);
