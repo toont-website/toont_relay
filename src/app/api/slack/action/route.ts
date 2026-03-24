@@ -1,6 +1,7 @@
 import { after } from "next/server";
 import { NextRequest, NextResponse } from "next/server";
 import { parseSlackRequest } from "@/lib/slack/verify";
+import { logger } from "@/lib/logger";
 import { validateSmsSend, executeSmsSend } from "@/lib/slack/actions/sms-send";
 import { handleReplySms, handleRetrySms } from "@/lib/slack/actions/reply-sms";
 import {
@@ -137,7 +138,11 @@ export async function POST(request: NextRequest) {
     if (actionId === "edit_contact") {
       const triggerId = payload.trigger_id;
       const contactId = payload.actions[0].value;
-      await openContactEditModal(triggerId, contactId);
+      try {
+        await openContactEditModal(triggerId, contactId);
+      } catch (error) {
+        logger.error({ error, actionId }, "모달 오픈 실패");
+      }
       return new NextResponse(null, { status: 200 });
     }
     if (actionId === "contact_select") {
@@ -178,31 +183,51 @@ export async function POST(request: NextRequest) {
     if (actionId === "send_template_sms") {
       const triggerId = payload.trigger_id;
       const orderId = payload.actions[0].value;
-      await openTemplateSendModal(triggerId, orderId);
+      try {
+        await openTemplateSendModal(triggerId, orderId);
+      } catch (error) {
+        logger.error({ error, actionId }, "모달 오픈 실패");
+      }
       return new NextResponse(null, { status: 200 });
     }
     if (actionId === "edit_profile") {
       const triggerId = payload.trigger_id;
       const profileId = payload.actions[0].value;
-      await openProfileEditModal(triggerId, profileId);
+      try {
+        await openProfileEditModal(triggerId, profileId);
+      } catch (error) {
+        logger.error({ error, actionId }, "모달 오픈 실패");
+      }
       return new NextResponse(null, { status: 200 });
     }
     if (actionId === "open_checklist") {
       const triggerId = payload.trigger_id;
       const orderId = payload.actions[0].value;
-      await openChecklistModal(triggerId, orderId);
+      try {
+        await openChecklistModal(triggerId, orderId);
+      } catch (error) {
+        logger.error({ error, actionId }, "모달 오픈 실패");
+      }
       return new NextResponse(null, { status: 200 });
     }
     if (actionId === "move_next_stage") {
       const triggerId = payload.trigger_id;
       const orderId = payload.actions[0].value;
-      await handleMoveNextStage(triggerId, orderId);
+      try {
+        await handleMoveNextStage(triggerId, orderId);
+      } catch (error) {
+        logger.error({ error, actionId }, "모달 오픈 실패");
+      }
       return new NextResponse(null, { status: 200 });
     }
     if (actionId === "assign_order_contact") {
       const triggerId = payload.trigger_id;
       const orderId = payload.actions[0].value;
-      await openOrderContactModal(triggerId, orderId);
+      try {
+        await openOrderContactModal(triggerId, orderId);
+      } catch (error) {
+        logger.error({ error, actionId }, "모달 오픈 실패");
+      }
       return new NextResponse(null, { status: 200 });
     }
     if (actionId === "view_order_detail") {

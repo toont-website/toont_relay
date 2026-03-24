@@ -35,7 +35,7 @@ export function buildKanbanMessage(board: OperationBoard) {
           })
         : "";
       const warn = isDeadlineApproaching(o.stageDeadline) ? " ⚠️ D-1" : "";
-      return `  • ${o.orderId ?? o.customerName} — ${o.customerName} / ${o.itemDescription} x${o.quantity}${deadline ? ` / ~${deadline}` : ""}${warn}`;
+      return `  • ${o.orderId ?? o.customerName} — ${o.customerName} / ${o.itemDescription ?? "-"} x${o.quantity}${deadline ? ` / ~${deadline}` : ""}${warn}`;
     });
 
     const more =
@@ -78,7 +78,9 @@ export function buildStageDetailMessage(stage: OperationStage) {
     { type: "divider" },
   ];
 
-  for (const order of stage.orders) {
+  const displayOrders = stage.orders.slice(0, 20);
+
+  for (const order of displayOrders) {
     const deadline = order.stageDeadline
       ? new Date(order.stageDeadline).toLocaleDateString("ko-KR")
       : "-";
@@ -101,7 +103,7 @@ export function buildStageDetailMessage(stage: OperationStage) {
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `📦 *${order.orderId ?? order.customerName}* — ${order.customerName} / ${order.itemDescription} x${order.quantity}\n   📅 마감: ${deadline}${warn}${checklistInfo ? `\n   체크리스트: ${checklistInfo}` : ""}`,
+          text: `📦 *${order.orderId ?? order.customerName}* — ${order.customerName} / ${order.itemDescription ?? "-"} x${order.quantity}\n   📅 마감: ${deadline}${warn}${checklistInfo ? `\n   체크리스트: ${checklistInfo}` : ""}`,
         },
       },
       {
@@ -129,6 +131,13 @@ export function buildStageDetailMessage(stage: OperationStage) {
         ],
       }
     );
+  }
+
+  if (stage.orders.length > 20) {
+    blocks.push({
+      type: "context",
+      elements: [{ type: "mrkdwn", text: `_...외 ${stage.orders.length - 20}건_` }],
+    });
   }
 
   if (stage.orders.length === 0) {

@@ -272,7 +272,14 @@ export async function openContactEditModal(triggerId: string, contactId: string)
  * 연락처 수정 모달 제출 처리
  */
 export async function handleContactEditSubmit(payload: any) {
-  const { contactId } = JSON.parse(payload.view.private_metadata);
+  let metadata: any;
+  try {
+    metadata = JSON.parse(payload.view.private_metadata);
+  } catch {
+    logger.error("private_metadata 파싱 실패 (handleContactEditSubmit)");
+    return null;
+  }
+  const { contactId } = metadata;
   const values = payload.view.state.values;
   const name = values.name_block?.name_input?.value ?? undefined;
   const typeId = values.type_block?.type_input?.selected_option?.value ?? undefined;
@@ -307,7 +314,7 @@ export async function handleContactEditSubmit(payload: any) {
 
 async function listContacts() {
   try {
-    const res = await getCsToolClient().getContacts({ limit: "100" });
+    const res = await getCsToolClient().getContacts({ limit: "30" });
     const contacts = res.data ?? [];
 
     if (contacts.length === 0) {
@@ -349,9 +356,21 @@ async function listContacts() {
       }
     }
 
+    const total = res.meta?.total ?? contacts.length;
+
+    // Slack 블록 50개 제한 방어
+    if (blocks.length > 48) {
+      const displayedCount = contacts.length;
+      blocks.length = 47;
+      blocks.push({
+        type: "context",
+        elements: [{ type: "mrkdwn", text: `_...외 ${total - displayedCount}명은 검색으로 조회해주세요._` }],
+      });
+    }
+
     blocks.push({
       type: "context",
-      elements: [{ type: "mrkdwn", text: `총 ${contacts.length}명` }],
+      elements: [{ type: "mrkdwn", text: `총 ${total}명` }],
     });
 
     return { response_type: "ephemeral" as const, text: " ", blocks };

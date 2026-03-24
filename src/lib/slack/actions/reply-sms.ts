@@ -114,7 +114,14 @@ export async function handleRetrySms(payload: any) {
   const action = payload.actions?.[0];
   if (!action?.value) return;
 
-  const { phoneNumber, message, threadTs } = JSON.parse(action.value);
+  let parsed: any;
+  try {
+    parsed = JSON.parse(action.value);
+  } catch {
+    logger.error("action.value 파싱 실패 (handleRetrySms)");
+    return;
+  }
+  const { phoneNumber, message, threadTs } = parsed;
   const normalized = normalizePhoneNumber(phoneNumber);
   if (!normalized) return;
 

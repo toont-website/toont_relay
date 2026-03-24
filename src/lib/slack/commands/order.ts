@@ -73,7 +73,7 @@ export async function handleOrderCommand(text: string) {
           type: "section",
           text: {
             type: "mrkdwn",
-            text: `*${order.customerName}*  ·  ${phone}  <https://cs.toont.co.kr/?view=operations&orderId=${order.id}|관리하기>\n>${order.itemDescription} x${order.quantity}`,
+            text: `*${order.customerName}*  ·  ${phone}  <https://cs.toont.co.kr/?view=operations&orderId=${order.id}|관리하기>\n>${order.itemDescription ?? "-"} x${order.quantity}`,
           },
           accessory: {
             type: "button",

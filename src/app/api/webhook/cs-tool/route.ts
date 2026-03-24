@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
                 type: "section",
                 text: {
                   type: "mrkdwn",
-                  text: `📋 *새 주문이 등록됐어요!*\n\n*고객:* ${order.customerName} (${phone})\n*상품:* ${order.itemDescription} x${order.quantity}개${order.dueDate ? `\n*납기:* ${order.dueDate}` : ""}\n\n<https://cs.toont.co.kr/?view=operations&orderId=${order.id}|CS Tool에서 관리하기>`,
+                  text: `📋 *새 주문이 등록됐어요!*\n\n*고객:* ${order.customerName} (${phone})\n*상품:* ${order.itemDescription ?? "-"} x${order.quantity}개${order.dueDate ? `\n*납기:* ${order.dueDate}` : ""}\n\n<https://cs.toont.co.kr/?view=operations&orderId=${order.id}|CS Tool에서 관리하기>`,
                 },
               },
             ],
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
                 type: "section",
                 text: {
                   type: "mrkdwn",
-                  text: `🔄 *주문 상태가 변경됐어요*\n\n*고객:* ${order.customerName}\n*상품:* ${order.itemDescription} x${order.quantity}\n*변경:* ${prevStatus} → *${currStatus}*\n\n<https://cs.toont.co.kr/?view=operations&orderId=${order.id}|CS Tool에서 관리하기>`,
+                  text: `🔄 *주문 상태가 변경됐어요*\n\n*고객:* ${order.customerName}\n*상품:* ${order.itemDescription ?? "-"} x${order.quantity}\n*변경:* ${prevStatus} → *${currStatus}*\n\n<https://cs.toont.co.kr/?view=operations&orderId=${order.id}|CS Tool에서 관리하기>`,
                 },
               },
             ],

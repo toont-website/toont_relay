@@ -23,7 +23,7 @@ export function buildOrderDetailMessage(order: Order) {
       type: "section",
       fields: [
         { type: "mrkdwn", text: `*👤 고객:* ${order.customerName} (${phone})` },
-        { type: "mrkdwn", text: `*📦 상품:* ${order.itemDescription} x${order.quantity}` },
+        { type: "mrkdwn", text: `*📦 상품:* ${order.itemDescription ?? "-"} x${order.quantity}` },
       ],
     },
     {

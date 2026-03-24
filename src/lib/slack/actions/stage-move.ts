@@ -54,7 +54,7 @@ export async function handleMoveNextStage(
       type: "section",
       text: {
         type: "mrkdwn",
-        text: `*${order.customerName}* · ${order.itemDescription}\n\n${order.currentStageName} → *${nextStage.name}*`,
+        text: `*${order.customerName}* · ${order.itemDescription ?? "-"}\n\n${order.currentStageName} → *${nextStage.name}*`,
       },
     },
   ];
@@ -121,7 +121,13 @@ export async function handleMoveNextStage(
 }
 
 export async function handleStageMoveSubmit(payload: any) {
-  const metadata = JSON.parse(payload.view.private_metadata);
+  let metadata: any;
+  try {
+    metadata = JSON.parse(payload.view.private_metadata);
+  } catch {
+    logger.error("private_metadata 파싱 실패 (handleStageMoveSubmit)");
+    return null;
+  }
   const { orderId, nextStageId, hasIncomplete } = metadata;
   const values = payload.view.state.values;
 

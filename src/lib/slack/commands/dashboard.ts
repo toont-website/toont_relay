@@ -76,7 +76,7 @@ export async function handleDashboardCommand() {
             type: "section",
             text: {
               type: "mrkdwn",
-              text: `*${order.customerName}*  ·  ${phone}\n>${order.itemDescription} x${order.quantity}`,
+              text: `*${order.customerName}*  ·  ${phone}\n>${order.itemDescription ?? "-"} x${order.quantity}`,
             },
           });
           if (due) {

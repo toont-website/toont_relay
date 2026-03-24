@@ -88,7 +88,13 @@ export async function validateTemplateSms(payload: any) {
   const values = payload.view.state.values;
   const phone = values.phone_block.phone_input.value;
   const message = values.message_block.message_input.value;
-  const metadata = JSON.parse(payload.view.private_metadata);
+  let metadata: any;
+  try {
+    metadata = JSON.parse(payload.view.private_metadata);
+  } catch {
+    logger.error("private_metadata 파싱 실패 (validateTemplateSms)");
+    return null;
+  }
 
   if (!phone || !message) {
     return {
@@ -137,7 +143,14 @@ export async function validateTemplateSms(payload: any) {
 
 // 컨펌 후 실제 발송
 export async function executeTemplateSms(payload: any) {
-  const { phone, message, orderId, contactName } = JSON.parse(payload.view.private_metadata);
+  let metadata: any;
+  try {
+    metadata = JSON.parse(payload.view.private_metadata);
+  } catch {
+    logger.error("private_metadata 파싱 실패 (executeTemplateSms)");
+    return;
+  }
+  const { phone, message, orderId, contactName } = metadata;
   const userId = payload.user.id;
   const slackActionId = `template_${payload.view.id}`;
 

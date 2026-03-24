@@ -180,7 +180,14 @@ export async function openProfileEditModal(
 }
 
 export async function handleProfileEditSubmit(payload: any) {
-  const { profileId } = JSON.parse(payload.view.private_metadata);
+  let metadata: any;
+  try {
+    metadata = JSON.parse(payload.view.private_metadata);
+  } catch {
+    logger.error("private_metadata 파싱 실패 (handleProfileEditSubmit)");
+    return null;
+  }
+  const { profileId } = metadata;
   const values = payload.view.state.values;
 
   const name = values.name_block.name_input.value;

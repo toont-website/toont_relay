@@ -41,7 +41,9 @@ export async function GET(request: NextRequest) {
     for (const order of stage.orders) {
       if (!order.stageDeadline) continue;
 
-      const deadlineStr = order.stageDeadline.split("T")[0];
+      const deadlineDate = new Date(order.stageDeadline);
+      const deadlineKst = new Date(deadlineDate.getTime() + 9 * 60 * 60 * 1000);
+      const deadlineStr = deadlineKst.toISOString().split("T")[0];
       if (deadlineStr !== tomorrowStr) continue;
 
       // 중복 방지
@@ -73,7 +75,7 @@ export async function GET(request: NextRequest) {
                 type: "section",
                 text: {
                   type: "mrkdwn",
-                  text: `⏰ *마감 임박 알림*\n\n📦 ${order.orderId ?? order.customerName} — ${order.customerName} / ${order.itemDescription} x${order.quantity}\n   현재 단계: ${stage.name}\n   마감일: 내일 (${tomorrowStr})`,
+                  text: `⏰ *마감 임박 알림*\n\n📦 ${order.orderId ?? order.customerName} — ${order.customerName} / ${order.itemDescription ?? "-"} x${order.quantity}\n   현재 단계: ${stage.name}\n   마감일: 내일 (${tomorrowStr})`,
                 },
               },
               {

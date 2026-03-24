@@ -42,7 +42,14 @@ export async function openOrderContactModal(triggerId: string, orderId: string) 
 }
 
 export async function handleOrderContactSubmit(payload: any) {
-  const { orderId } = JSON.parse(payload.view.private_metadata);
+  let metadata: any;
+  try {
+    metadata = JSON.parse(payload.view.private_metadata);
+  } catch {
+    logger.error("private_metadata 파싱 실패 (handleOrderContactSubmit)");
+    return null;
+  }
+  const { orderId } = metadata;
   const values = payload.view.state.values;
   const client = getCsToolClient();
 

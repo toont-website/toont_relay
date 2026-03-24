@@ -89,7 +89,14 @@ export async function openChecklistModal(triggerId: string, orderId: string) {
 }
 
 export async function handleChecklistSubmit(payload: any) {
-  const { orderId, stageId } = JSON.parse(payload.view.private_metadata);
+  let metadata: any;
+  try {
+    metadata = JSON.parse(payload.view.private_metadata);
+  } catch {
+    logger.error("private_metadata 파싱 실패 (handleChecklistSubmit)");
+    return null;
+  }
+  const { orderId, stageId } = metadata;
   const values = payload.view.state.values;
 
   const items: Array<{ id: string; checked?: boolean; value?: string }> = [];
