@@ -1,6 +1,7 @@
 import { getCsToolClient } from "@/lib/cs-tool/client";
 import { getSlackClient } from "@/lib/slack/client";
 import { displayPhoneNumber, normalizePhoneNumber } from "@/lib/utils/phone";
+import { buildOrderDetailMessage } from "@/lib/slack/messages/order-detail";
 import { logger } from "@/lib/logger";
 
 /**
@@ -21,6 +22,16 @@ export async function handleOrderCommand(text: string) {
   const client = getCsToolClient();
 
   try {
+    // UUID 형태면 단일 주문 상세 조회
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed);
+    if (isUuid) {
+      const result = await client.getOrder(trimmed);
+      if (!result.data) {
+        return { text: `주문을 찾을 수 없어요: ${trimmed}` };
+      }
+      return buildOrderDetailMessage(result.data);
+    }
+
     const filters: Record<string, string> = { limit: "10" };
     if (trimmed) {
       const statusMap: Record<string, string> = {
@@ -63,6 +74,12 @@ export async function handleOrderCommand(text: string) {
           text: {
             type: "mrkdwn",
             text: `*${order.customerName}*  ·  ${phone}  <https://cs.toont.co.kr/?view=operations&orderId=${order.id}|관리하기>\n>${order.itemDescription} x${order.quantity}`,
+          },
+          accessory: {
+            type: "button",
+            text: { type: "plain_text", text: "상세" },
+            action_id: "view_order_detail",
+            value: order.id,
           },
         },
         {
