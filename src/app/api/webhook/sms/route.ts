@@ -8,6 +8,8 @@ import { buildSmsReceivedMessage } from "@/lib/slack/messages/sms-received";
 import { logger } from "@/lib/logger";
 import type { SmsGatewayWebhookEvent } from "@/lib/sms-gateway/types";
 import { findActiveThread } from "@/lib/slack/thread/find-thread";
+import { getCsToolClient } from "@/lib/cs-tool/client";
+import type { CsContact } from "@/lib/cs-tool/types";
 
 export async function POST(request: NextRequest) {
   const body = await request.text();
@@ -46,7 +48,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
-  const contact = await prisma.contact.findUnique({ where: { phoneNumber } });
+  // CS Tool API로 연락처 조회
+  let csContact: CsContact | undefined;
+  try {
+    const csClient = getCsToolClient();
+    const contactResult = await csClient.getContacts({ search: phoneNumber, limit: "5" });
+    csContact = (contactResult.data ?? []).find(
+      (c) => c.phone && normalizePhoneNumber(c.phone) === normalizePhoneNumber(phoneNumber)
+    );
+  } catch (error) {
+    logger.warn({ phoneNumber, error }, "CS Tool 연락처 조회 실패 — 미등록 연락처로 처리");
+  }
 
   const activeThreadTs = await findActiveThread(phoneNumber);
   const isNewThread = activeThreadTs === null;
@@ -68,7 +80,6 @@ export async function POST(request: NextRequest) {
       phoneNumber,
       message,
       status: "received",
-      contactId: contact?.id,
     },
   });
 
@@ -76,7 +87,7 @@ export async function POST(request: NextRequest) {
   const slackClient = getSlackClient();
 
   const slackMessage = buildSmsReceivedMessage({
-    senderName: contact?.name ?? null,
+    senderName: csContact?.name ?? null,
     phoneNumber,
     message,
     receivedAt,
@@ -101,6 +112,6 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  logger.info({ phoneNumber, contactName: contact?.name }, "SMS 수신 처리 완료");
+  logger.info({ phoneNumber, contactName: csContact?.name }, "SMS 수신 처리 완료");
   return NextResponse.json({ ok: true });
 }

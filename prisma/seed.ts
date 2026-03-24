@@ -2,19 +2,9 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-const contacts = [
-  { name: "강동현", phoneNumber: "+8201095337464", memo: null },
-];
-
 async function main() {
-  for (const contact of contacts) {
-    await prisma.contact.upsert({
-      where: { phoneNumber: contact.phoneNumber },
-      update: { name: contact.name, memo: contact.memo },
-      create: contact,
-    });
-  }
-  console.log(`시드 완료: ${contacts.length}개 연락처`);
+  // Contact 모델 제거됨 — 연락처는 CS Tool API에서 관리
+  console.log("시드 완료 (현재 시드 데이터 없음)");
 }
 
 main()

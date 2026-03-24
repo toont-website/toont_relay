@@ -5,12 +5,12 @@ import { prisma } from "@/lib/db/prisma";
 import { normalizePhoneNumber, formatPhoneNumber } from "@/lib/utils/phone";
 import { buildSmsSentMessage, buildSmsFailedMessage } from "../messages/sms-sent";
 import { logger } from "@/lib/logger";
+import { getCsToolClient } from "@/lib/cs-tool/client";
 
 interface SmsSendValidated {
   phoneNumber: string;
   messageText: string;
   recipientName: string;
-  contactId: string | null;
   userId: string;
   slackActionId: string;
   threadTs: string | null;
@@ -60,16 +60,25 @@ export async function validateSmsSend(
     };
   }
 
-  const contact = await prisma.contact.findUnique({ where: { phoneNumber } });
-  const recipientName = contact
-    ? `${contact.name} (${formatPhoneNumber(phoneNumber)})`
-    : formatPhoneNumber(phoneNumber);
+  // CS Tool API로 연락처 조회
+  let recipientName = formatPhoneNumber(phoneNumber);
+  try {
+    const csClient = getCsToolClient();
+    const contactResult = await csClient.getContacts({ search: phoneNumber, limit: "5" });
+    const csContact = (contactResult.data ?? []).find(
+      (c) => c.phone && normalizePhoneNumber(c.phone) === normalizePhoneNumber(phoneNumber)
+    );
+    if (csContact) {
+      recipientName = `${csContact.name} (${formatPhoneNumber(phoneNumber)})`;
+    }
+  } catch (error) {
+    logger.warn({ phoneNumber, error }, "CS Tool 연락처 조회 실패 — 번호만 표시");
+  }
 
   return {
     phoneNumber,
     messageText,
     recipientName,
-    contactId: contact?.id ?? null,
     userId,
     slackActionId,
     threadTs,
@@ -77,7 +86,7 @@ export async function validateSmsSend(
 }
 
 export async function executeSmsSend(validated: SmsSendValidated): Promise<void> {
-  const { phoneNumber, messageText, recipientName, contactId, userId, slackActionId, threadTs } = validated;
+  const { phoneNumber, messageText, recipientName, userId, slackActionId, threadTs } = validated;
 
   const env = getEnv();
   const slackClient = getSlackClient();
@@ -107,7 +116,6 @@ export async function executeSmsSend(validated: SmsSendValidated): Promise<void>
           message: messageText,
           status: "sent",
           slackActionId,
-          contactId: contactId ?? undefined,
           slackThreadTs: threadTs ?? postResult.ts ?? undefined,
           slackUserId: userId,
         },
@@ -144,7 +152,6 @@ export async function executeSmsSend(validated: SmsSendValidated): Promise<void>
         message: messageText,
         status: "failed",
         slackActionId: `${slackActionId}_failed`,
-        contactId: contactId ?? undefined,
         slackThreadTs: threadTs ?? undefined,
         slackUserId: userId,
       },

@@ -5,6 +5,8 @@ import { getSmsGatewayClient } from "@/lib/sms-gateway/client";
 import { getEnv } from "@/lib/config/env";
 import { buildSmsSentMessage } from "@/lib/slack/messages/sms-sent";
 import { logger } from "@/lib/logger";
+import { getCsToolClient } from "@/lib/cs-tool/client";
+import type { CsContact } from "@/lib/cs-tool/types";
 
 export async function handleReplySms(payload: any) {
   const action = payload.actions?.[0];
@@ -22,9 +24,20 @@ export async function handleReplySms(payload: any) {
 
   if (!phoneNumber || !triggerId) return;
 
-  const contact = await prisma.contact.findUnique({ where: { phoneNumber } });
-  const displayName = contact
-    ? `${contact.name} (${formatPhoneNumber(phoneNumber)})`
+  // CS Tool API로 연락처 조회
+  let csContact: CsContact | undefined;
+  try {
+    const csClient = getCsToolClient();
+    const contactResult = await csClient.getContacts({ search: phoneNumber, limit: "5" });
+    csContact = (contactResult.data ?? []).find(
+      (c) => c.phone && normalizePhoneNumber(c.phone) === normalizePhoneNumber(phoneNumber)
+    );
+  } catch (error) {
+    logger.warn({ phoneNumber, error }, "CS Tool 연락처 조회 실패 — 미등록 연락처로 처리");
+  }
+
+  const displayName = csContact
+    ? `${csContact.name} (${formatPhoneNumber(phoneNumber)})`
     : formatPhoneNumber(phoneNumber);
 
   const recentMessages = await prisma.messageLog.findMany({
@@ -33,7 +46,7 @@ export async function handleReplySms(payload: any) {
     take: 3,
   });
 
-  const contactLabel = contact?.name ?? formatPhoneNumber(phoneNumber);
+  const contactLabel = csContact?.name ?? formatPhoneNumber(phoneNumber);
 
   const contextBlocks: any[] = [];
   if (recentMessages.length > 0) {
@@ -111,7 +124,18 @@ export async function handleRetrySms(payload: any) {
 
   try {
     const result = await smsClient.sendSMS(normalized, message);
-    const contact = await prisma.contact.findUnique({ where: { phoneNumber: normalized } });
+
+    // CS Tool API로 연락처 조회
+    let retryCsContact: CsContact | undefined;
+    try {
+      const csClient = getCsToolClient();
+      const contactResult = await csClient.getContacts({ search: normalized, limit: "5" });
+      retryCsContact = (contactResult.data ?? []).find(
+        (c) => c.phone && normalizePhoneNumber(c.phone) === normalizePhoneNumber(normalized)
+      );
+    } catch (error) {
+      logger.warn({ phoneNumber: normalized, error }, "CS Tool 연락처 조회 실패 — 미등록 연락처로 처리");
+    }
 
     await prisma.messageLog.create({
       data: {
@@ -119,14 +143,13 @@ export async function handleRetrySms(payload: any) {
         phoneNumber: normalized,
         message,
         status: "sent",
-        contactId: contact?.id,
         slackThreadTs: threadTs ?? undefined,
         slackUserId: payload.user.id,
       },
     });
 
-    const recipientName = contact
-      ? `${contact.name} (${formatPhoneNumber(normalized)})`
+    const recipientName = retryCsContact
+      ? `${retryCsContact.name} (${formatPhoneNumber(normalized)})`
       : formatPhoneNumber(normalized);
 
     await slackClient.chat.postMessage({
