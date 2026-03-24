@@ -168,44 +168,47 @@ export async function handleOrderCreateCommand(triggerId: string) {
       },
     ];
 
-    // 상품 드롭다운 (상품이 있으면 드롭다운, 없으면 직접 입력)
+    // 상품 드롭다운 (상품이 있으면 멀티 셀렉트, 없으면 직접 입력 + 단일 수량)
     if (productOptions.length > 0) {
       blocks.push({
         type: "input",
         block_id: "product_block",
         dispatch_action: true,
-        label: { type: "plain_text", text: "상품" },
+        label: { type: "plain_text", text: "상품 (복수 선택 가능)" },
         element: {
-          type: "static_select",
+          type: "multi_static_select",
           action_id: "product_select",
           placeholder: { type: "plain_text", text: "상품을 선택하세요" },
           options: productOptions.slice(0, 100), // Slack 최대 100개
         },
       });
+      // SKU별 수량 필드는 상품 선택 후 동적으로 추가됨 (block_actions)
     } else {
-      blocks.push({
-        type: "input",
-        block_id: "product_block",
-        label: { type: "plain_text", text: "상품명" },
-        element: {
-          type: "plain_text_input",
-          action_id: "product_input",
-          placeholder: { type: "plain_text", text: "직선형 120cm - 포슬린" },
+      blocks.push(
+        {
+          type: "input",
+          block_id: "product_block",
+          label: { type: "plain_text", text: "상품명" },
+          element: {
+            type: "plain_text_input",
+            action_id: "product_input",
+            placeholder: { type: "plain_text", text: "직선형 120cm - 포슬린" },
+          },
         },
-      });
+        {
+          type: "input",
+          block_id: "quantity_block",
+          label: { type: "plain_text", text: "수량" },
+          element: {
+            type: "plain_text_input",
+            action_id: "quantity_input",
+            placeholder: { type: "plain_text", text: "2" },
+          },
+        },
+      );
     }
 
     blocks.push(
-      {
-        type: "input",
-        block_id: "quantity_block",
-        label: { type: "plain_text", text: "수량" },
-        element: {
-          type: "plain_text_input",
-          action_id: "quantity_input",
-          placeholder: { type: "plain_text", text: "2" },
-        },
-      },
       {
         type: "input",
         block_id: "address_block",
@@ -264,16 +267,18 @@ export async function handleOrderCreateCommand(triggerId: string) {
 }
 
 /**
- * 상품 선택 시 프로필 매칭 → 모달 동적 갱신 (block_actions)
+ * 상품 선택 시 SKU별 수량 필드 동적 추가 + 프로필 매칭 → 모달 갱신 (block_actions)
  */
 export async function handleProductSelect(payload: any) {
   const slackClient = getSlackClient();
   const view = payload.view;
-  const selectedOption = payload.actions[0]?.selected_option;
-  if (!selectedOption) return;
+  const selectedOptions: any[] = payload.actions[0]?.selected_options ?? [];
 
-  const parsed = JSON.parse(selectedOption.value);
-  const sku = parsed.sku as string;
+  // 선택된 SKU 목록 파싱
+  const selectedProducts = selectedOptions.map((opt: any) => {
+    const parsed = JSON.parse(opt.value);
+    return { name: parsed.name as string, sku: parsed.sku as string };
+  });
 
   let profiles: Array<{
     id: string;
@@ -287,63 +292,83 @@ export async function handleProductSelect(payload: any) {
     profiles = meta.profiles ?? [];
   } catch { /* ignore */ }
 
-  // SKU에 매칭되는 프로필 필터
-  const matched = profiles.filter((p) => p.skus.includes(sku));
-  const defaultProfile = profiles.find((p) => p.isDefault);
-
-  // 기존 블럭에서 프로필/연락처 블럭 제거하고 재구성
+  // 기존 블럭에서 수량/프로필/연락처 블럭 제거하고 재구성
   const baseBlocks = view.blocks.filter(
     (b: any) =>
-      !b.block_id?.startsWith("profile_") && !b.block_id?.startsWith("order_contact_")
+      !b.block_id?.startsWith("qty_") &&
+      !b.block_id?.startsWith("profile_") &&
+      !b.block_id?.startsWith("order_contact_")
   );
 
-  // quantity_block 뒤에 프로필 블럭 삽입
-  const quantityIdx = baseBlocks.findIndex((b: any) => b.block_id === "quantity_block");
-  const insertIdx = quantityIdx >= 0 ? quantityIdx + 1 : baseBlocks.length;
+  // product_block 뒤에 수량 + 프로필 블럭 삽입
+  const productIdx = baseBlocks.findIndex((b: any) => b.block_id === "product_block");
+  const insertIdx = productIdx >= 0 ? productIdx + 1 : baseBlocks.length;
 
   const newBlocks: any[] = [];
 
-  let selectedProfileId: string | undefined;
-
-  if (matched.length === 1) {
-    // 프로필 1개: 자동 선택 (context 블록)
-    selectedProfileId = matched[0].id;
-    newBlocks.push({
-      type: "section",
-      block_id: "profile_auto",
-      text: {
-        type: "mrkdwn",
-        text: `*프로필:* ${matched[0].name} (자동 선택)`,
-      },
-    });
-  } else if (matched.length >= 2) {
-    // 프로필 2개+: 드롭다운
+  // SKU별 수량 입력 필드 추가
+  const existingValues = view.state?.values ?? {};
+  for (const product of selectedProducts) {
+    // 기존에 입력한 수량 보존
+    const existingQty = existingValues[`qty_${product.sku}`]?.[`qty_input_${product.sku}`]?.value;
     newBlocks.push({
       type: "input",
-      block_id: "profile_select_block",
-      dispatch_action: true,
-      label: { type: "plain_text", text: "프로필" },
+      block_id: `qty_${product.sku}`,
+      label: { type: "plain_text", text: `${product.name} (${product.sku}) 수량` },
       element: {
-        type: "static_select",
-        action_id: "profile_select",
-        placeholder: { type: "plain_text", text: "프로필을 선택하세요" },
-        options: matched.map((p) => ({
-          text: { type: "plain_text", text: p.name },
-          value: p.id,
-        })),
+        type: "plain_text_input",
+        action_id: `qty_input_${product.sku}`,
+        placeholder: { type: "plain_text", text: "1" },
+        ...(existingQty ? { initial_value: existingQty } : { initial_value: "1" }),
       },
     });
-  } else if (defaultProfile) {
-    // 매칭 0개 → 기본 프로필
-    selectedProfileId = defaultProfile.id;
-    newBlocks.push({
-      type: "section",
-      block_id: "profile_auto",
-      text: {
-        type: "mrkdwn",
-        text: `*프로필:* ${defaultProfile.name} (기본)`,
-      },
-    });
+  }
+
+  // 프로필 매칭 — 첫 번째 SKU 기준
+  const primarySku = selectedProducts[0]?.sku;
+  let selectedProfileId: string | undefined;
+
+  if (primarySku) {
+    const matched = profiles.filter((p) => p.skus.includes(primarySku));
+    const defaultProfile = profiles.find((p) => p.isDefault);
+
+    if (matched.length === 1) {
+      selectedProfileId = matched[0].id;
+      newBlocks.push({
+        type: "section",
+        block_id: "profile_auto",
+        text: {
+          type: "mrkdwn",
+          text: `*프로필:* ${matched[0].name} (자동 선택)`,
+        },
+      });
+    } else if (matched.length >= 2) {
+      newBlocks.push({
+        type: "input",
+        block_id: "profile_select_block",
+        dispatch_action: true,
+        label: { type: "plain_text", text: "프로필" },
+        element: {
+          type: "static_select",
+          action_id: "profile_select",
+          placeholder: { type: "plain_text", text: "프로필을 선택하세요" },
+          options: matched.map((p) => ({
+            text: { type: "plain_text", text: p.name },
+            value: p.id,
+          })),
+        },
+      });
+    } else if (defaultProfile) {
+      selectedProfileId = defaultProfile.id;
+      newBlocks.push({
+        type: "section",
+        block_id: "profile_auto",
+        text: {
+          type: "mrkdwn",
+          text: `*프로필:* ${defaultProfile.name} (기본)`,
+        },
+      });
+    }
   }
 
   // 프로필이 확정된 경우 연락처 external_select 추가
@@ -373,12 +398,13 @@ export async function handleProductSelect(payload: any) {
     }
   }
 
-  // 메타데이터에 선택된 profileId 추가
+  // 메타데이터에 선택된 profileId + selectedSkus 저장
   let updatedMeta: any = {};
   try {
     updatedMeta = JSON.parse(view.private_metadata);
   } catch { /* ignore */ }
   updatedMeta.selectedProfileId = selectedProfileId;
+  updatedMeta.selectedProducts = selectedProducts;
 
   const finalBlocks = [
     ...baseBlocks.slice(0, insertIdx),
@@ -492,6 +518,8 @@ export interface ValidatedOrderAdd {
   itemDescription: string;
   quantity: number;
   sku?: string;
+  skus: string[];
+  skuQuantities: Record<string, number>;
   address?: string;
   dueDate?: string;
   notes?: string;
@@ -507,23 +535,60 @@ export async function validateOrderAdd(
 
   const customerName = values.customer_block.customer_input.value;
   const rawPhone = values.phone_block.phone_input.value;
-  const quantity = parseInt(values.quantity_block.quantity_input.value, 10);
   const address = values.address_block?.address_input?.value ?? undefined;
   const dueDate = values.due_date_block?.due_date_input?.selected_date ?? undefined;
   const notes = values.notes_block?.notes_input?.value ?? undefined;
 
-  // 상품 — 드롭다운 또는 직접 입력
+  // 상품 — 멀티 셀렉트 또는 직접 입력
   let itemDescription: string;
   let sku: string | undefined;
-  const selectedProduct = values.product_block?.product_select?.selected_option;
+  let skus: string[] = [];
+  let skuQuantities: Record<string, number> = {};
+  let quantity: number;
+
+  const selectedProducts: any[] = values.product_block?.product_select?.selected_options ?? [];
   const manualProduct = values.product_block?.product_input?.value;
 
-  if (selectedProduct) {
-    const parsed = JSON.parse(selectedProduct.value);
-    itemDescription = parsed.name;
-    sku = parsed.sku;
+  if (selectedProducts.length > 0) {
+    // 멀티 셀렉트: SKU별 수량 추출
+    const names: string[] = [];
+    const errors: Record<string, string> = {};
+
+    for (const opt of selectedProducts) {
+      const parsed = JSON.parse(opt.value);
+      const productSku = parsed.sku as string;
+      const productName = parsed.name as string;
+
+      names.push(productName);
+      skus.push(productSku);
+
+      const rawQty = values[`qty_${productSku}`]?.[`qty_input_${productSku}`]?.value;
+      const qty = parseInt(rawQty, 10);
+      if (isNaN(qty) || qty <= 0) {
+        errors[`qty_${productSku}`] = "1 이상의 숫자를 입력해주세요.";
+      } else {
+        skuQuantities = { ...skuQuantities, [productSku]: qty };
+      }
+    }
+
+    if (Object.keys(errors).length > 0) {
+      return { response_action: "errors" as const, errors };
+    }
+
+    sku = skus[0];
+    itemDescription = names.join(", ");
+    quantity = Object.values(skuQuantities).reduce((sum, q) => sum + q, 0);
   } else if (manualProduct) {
+    // 직접 입력 모드 (재고 없을 때 폴백)
     itemDescription = manualProduct;
+    const rawQty = values.quantity_block?.quantity_input?.value;
+    quantity = parseInt(rawQty, 10);
+    if (isNaN(quantity) || quantity <= 0) {
+      return {
+        response_action: "errors" as const,
+        errors: { quantity_block: "1 이상의 숫자를 입력해주세요." },
+      };
+    }
   } else {
     return {
       response_action: "errors" as const,
@@ -543,13 +608,6 @@ export async function validateOrderAdd(
     return {
       response_action: "errors" as const,
       errors: { phone_block: "유효한 전화번호를 입력해주세요." },
-    };
-  }
-
-  if (isNaN(quantity) || quantity <= 0) {
-    return {
-      response_action: "errors" as const,
-      errors: { quantity_block: "1 이상의 숫자를 입력해주세요." },
     };
   }
 
@@ -580,14 +638,14 @@ export async function validateOrderAdd(
     } catch { /* ignore */ }
   }
 
-  return { customerName, phone, itemDescription, quantity, sku, address, dueDate, notes, profileId, contactIds };
+  return { customerName, phone, itemDescription, quantity, sku, skus, skuQuantities, address, dueDate, notes, profileId, contactIds };
 }
 
 /**
  * order_add_modal — 주문 생성 실행 (비동기, after()에서 호출)
  */
 export async function executeOrderAdd(data: ValidatedOrderAdd): Promise<void> {
-  const { customerName, phone, itemDescription, quantity, sku, address, dueDate, notes, profileId, contactIds } = data;
+  const { customerName, phone, itemDescription, quantity, sku, skus, skuQuantities, address, dueDate, notes, profileId, contactIds } = data;
 
   try {
     const client = getCsToolClient();
@@ -597,7 +655,8 @@ export async function executeOrderAdd(data: ValidatedOrderAdd): Promise<void> {
       quantity,
       phone,
       sku,
-      skus: sku ? [sku] : undefined,
+      skus: skus.length > 0 ? skus : sku ? [sku] : undefined,
+      skuQuantities: Object.keys(skuQuantities).length > 0 ? skuQuantities : undefined,
       address,
       dueDate,
       notes,
@@ -622,7 +681,7 @@ export async function executeOrderAdd(data: ValidatedOrderAdd): Promise<void> {
       }
     }
 
-    logger.info({ customerName, itemDescription, quantity, sku, profileId, contactCount: contactIds.length }, "주문 등록 완료");
+    logger.info({ customerName, itemDescription, quantity, skus, skuQuantities, profileId, contactCount: contactIds.length }, "주문 등록 완료");
   } catch (error) {
     const msg = error instanceof Error ? error.message : "알 수 없는 에러";
     if (msg.includes("INVALID_PROFILE")) {
