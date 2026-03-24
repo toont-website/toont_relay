@@ -20,6 +20,15 @@ export interface Order {
   notes?: string;
   currentStageId?: string;
   currentStageName?: string;
+  profileId: string | null;
+  profileName: string | null;
+  stageEnteredAt: string | null;
+  stageDeadline: string | null;
+  templateVariables: Record<string, string>;
+  contacts: OrderContact[];
+  requiredContactTypes: RequiredContactType[];
+  currentStageTemplates: StageTemplate[];
+  checklistStatus: ChecklistStatus[];
   createdAt: string;
   updatedAt: string;
 }
@@ -70,12 +79,139 @@ export interface StockChangeParams {
 }
 
 // 오퍼레이션
+export interface OperationStage {
+  id: string;
+  name: string;
+  position: number;
+  color: string;
+  orders: Order[];
+}
+
 export interface OperationBoard {
-  stages: Array<{
-    id: string;
-    name: string;
-    orders: Order[];
-  }>;
+  stages: OperationStage[];
+}
+
+export interface UpdateStageParams {
+  stageId: string;
+  stageDeadline?: string;
+  skipChecklist?: boolean;
+}
+
+// 연락처
+export interface CsContact {
+  id: string;
+  typeId: string;
+  typeName: string;
+  typeSlug: string;
+  name: string;
+  phone: string;
+  memo: string | null;
+  address: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateContactParams {
+  name: string;
+  typeId?: string;
+  phone?: string;
+  memo?: string;
+  address?: string;
+}
+
+export interface UpdateContactParams {
+  name?: string;
+  typeId?: string;
+  phone?: string;
+  memo?: string;
+  address?: string;
+}
+
+export interface ContactType {
+  id: string;
+  name: string;
+  slug: string;
+  isDefault: boolean;
+}
+
+export interface CreateContactTypeParams {
+  name: string;
+  slug: string;
+}
+
+// 주문 연락처
+export interface OrderContact {
+  type: string;
+  typeName: string;
+  name: string;
+  phone: string;
+}
+
+export interface RequiredContactType {
+  id: string;
+  slug: string;
+  name: string;
+}
+
+// 프로필
+export interface Profile {
+  id: string;
+  name: string;
+  description: string | null;
+  isDefault: boolean;
+  contactTypeIds: string[];
+  skus: string[];
+  variableHints: Record<string, string>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UpdateProfileParams {
+  name?: string;
+  description?: string;
+  isDefault?: boolean;
+  contactTypeIds?: string[];
+  variableHints?: Record<string, string>;
+}
+
+// 단계
+export interface Stage {
+  id: string;
+  name: string;
+  position: number;
+  color: string;
+  defaultDays: number;
+  requiredItems: StageRequiredItem[];
+}
+
+export interface StageRequiredItem {
+  id: string;
+  type: "checkbox" | "text";
+  label: string;
+}
+
+// 체크리스트
+export interface ChecklistItem {
+  id: string;
+  type: "checkbox" | "text";
+  label: string;
+  checked?: boolean;
+  value?: string;
+}
+
+export interface ChecklistStatus {
+  stageId: string;
+  stageName: string;
+  complete: boolean;
+  items: ChecklistItem[];
+}
+
+// 단계 템플릿
+export interface StageTemplate {
+  contactType: string;
+  contactTypeName: string;
+  label: string;
+  text: string;
 }
 
 // 웹훅 이벤트
