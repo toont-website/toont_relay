@@ -17,6 +17,10 @@ import {
   openContactEditModal,
   handleContactEditSubmit,
 } from "@/lib/slack/commands/contact";
+import {
+  openOrderContactModal,
+  handleOrderContactSubmit,
+} from "@/lib/slack/actions/order-contact";
 
 export async function POST(request: NextRequest) {
   const result = await parseSlackRequest(request);
@@ -54,6 +58,11 @@ export async function POST(request: NextRequest) {
     }
     if (callbackId === "stock_out_modal") {
       const response = await handleStockSubmission(payload, "outbound");
+      if (response) return NextResponse.json(response);
+      return new NextResponse(null, { status: 200 });
+    }
+    if (callbackId === "order_contact_modal") {
+      const response = await handleOrderContactSubmit(payload);
       if (response) return NextResponse.json(response);
       return new NextResponse(null, { status: 200 });
     }
@@ -108,6 +117,14 @@ export async function POST(request: NextRequest) {
     if (actionId === "profile_select") {
       after(async () => {
         await handleProfileSelect(payload);
+      });
+      return new NextResponse(null, { status: 200 });
+    }
+    if (actionId === "assign_order_contact") {
+      const triggerId = payload.trigger_id;
+      const orderId = payload.actions[0].value;
+      after(async () => {
+        await openOrderContactModal(triggerId, orderId);
       });
       return new NextResponse(null, { status: 200 });
     }
