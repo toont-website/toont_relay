@@ -6,6 +6,8 @@ import { getSmsGatewayClient } from "@/lib/sms-gateway/client";
 import { buildSmsSentMessage, buildSmsFailedMessage } from "../messages/sms-sent";
 import { logger } from "@/lib/logger";
 import { findActiveThread } from "@/lib/slack/thread/find-thread";
+import { getCsToolClient } from "@/lib/cs-tool/client";
+import type { CsContact } from "@/lib/cs-tool/types";
 
 /**
  * /sms 커맨드 핸들러
@@ -44,23 +46,32 @@ export async function handleSmsCommand(
     return sendInlineSms(normalized, message, userId);
   }
 
-  // 이름으로 검색
-  const contacts = await prisma.contact.findMany({
-    where: { name: { contains: recipientInput } },
-    take: 10,
-  });
+  // 이름으로 CS Tool API 검색
+  let contacts: CsContact[] = [];
+  try {
+    const csClient = getCsToolClient();
+    const contactResult = await csClient.getContacts({ search: recipientInput, limit: "10" });
+    contacts = contactResult.data ?? [];
+  } catch (error) {
+    logger.warn({ recipientInput, error }, "CS Tool 연락처 검색 실패");
+    return { text: "연락처 검색 중 오류가 발생했습니다. 번호로 직접 입력하세요." };
+  }
 
   if (contacts.length === 0) {
     return { text: `"${recipientInput}" 검색 결과 없음. 번호로 직접 입력하세요.\n예: \`/sms 010-1234-5678 안녕하세요\`` };
   }
 
-  if (contacts.length === 1) {
-    return sendInlineSms(contacts[0].phoneNumber, message, userId);
+  if (contacts.length === 1 && contacts[0].phone) {
+    const contactPhone = normalizePhoneNumber(contacts[0].phone);
+    if (contactPhone) {
+      return sendInlineSms(contactPhone, message, userId);
+    }
   }
 
   // 여러 명 매칭
   const list = contacts
-    .map((c, i) => `${i + 1}. ${c.name} (${formatPhoneNumber(c.phoneNumber)})`)
+    .filter((c) => c.phone)
+    .map((c, i) => `${i + 1}. ${c.name} (${formatPhoneNumber(normalizePhoneNumber(c.phone) ?? c.phone)})`)
     .join("\n");
   return { text: `"${recipientInput}" 검색 결과 ${contacts.length}명:\n${list}\n\n정확한 이름이나 번호로 다시 입력하세요.` };
 }
@@ -123,7 +134,17 @@ export async function handleContactSelect(payload: any) {
   const viewId = payload.view?.id;
   if (!viewId) return;
 
-  const contact = await prisma.contact.findUnique({ where: { phoneNumber } });
+  // CS Tool API로 연락처 조회
+  let csContact: CsContact | undefined;
+  try {
+    const csClient = getCsToolClient();
+    const contactResult = await csClient.getContacts({ search: phoneNumber, limit: "5" });
+    csContact = (contactResult.data ?? []).find(
+      (c) => c.phone && normalizePhoneNumber(c.phone) === normalizePhoneNumber(phoneNumber)
+    );
+  } catch (error) {
+    logger.warn({ phoneNumber, error }, "CS Tool 연락처 조회 실패");
+  }
 
   // 최근 5개 대화 조회
   const recentMessages = await prisma.messageLog.findMany({
@@ -160,7 +181,7 @@ export async function handleContactSelect(payload: any) {
   }
 
   if (recentMessages.length > 0) {
-    const contactLabel = contact?.name ?? formatPhoneNumber(phoneNumber);
+    const contactLabel = csContact?.name ?? formatPhoneNumber(phoneNumber);
     historyBlocks.push({ type: "divider" });
     historyBlocks.push({
       type: "section",
@@ -232,9 +253,20 @@ export async function handleContactSelect(payload: any) {
 }
 
 async function sendInlineSms(phoneNumber: string, message: string, userId: string) {
-  const contact = await prisma.contact.findUnique({ where: { phoneNumber } });
-  const recipientName = contact
-    ? `${contact.name} (${formatPhoneNumber(phoneNumber)})`
+  // CS Tool API로 연락처 조회
+  let inlineCsContact: CsContact | undefined;
+  try {
+    const csClient = getCsToolClient();
+    const contactResult = await csClient.getContacts({ search: phoneNumber, limit: "5" });
+    inlineCsContact = (contactResult.data ?? []).find(
+      (c) => c.phone && normalizePhoneNumber(c.phone) === normalizePhoneNumber(phoneNumber)
+    );
+  } catch (error) {
+    logger.warn({ phoneNumber, error }, "CS Tool 연락처 조회 실패 — 번호만 표시");
+  }
+
+  const recipientName = inlineCsContact
+    ? `${inlineCsContact.name} (${formatPhoneNumber(phoneNumber)})`
     : formatPhoneNumber(phoneNumber);
 
   const env = getEnv();
@@ -264,7 +296,6 @@ async function sendInlineSms(phoneNumber: string, message: string, userId: strin
         phoneNumber,
         message,
         status: "sent",
-        contactId: contact?.id,
         slackThreadTs: activeThreadTs ?? postResult?.ts ?? undefined,
         slackUserId: userId,
       },
