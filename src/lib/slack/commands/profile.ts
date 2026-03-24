@@ -159,19 +159,19 @@ export async function openProfileEditModal(
         ...(typeOptions.length > 0
           ? [
               {
-                type: "input",
+                type: "input" as const,
                 block_id: "types_block",
-                label: { type: "plain_text", text: "필수 연락처 타입" },
+                label: { type: "plain_text" as const, text: "필수 연락처 타입" },
                 optional: true,
                 element: {
-                  type: "multi_static_select",
+                  type: "multi_static_select" as const,
                   action_id: "types_select",
                   options: typeOptions,
                   ...(initialTypes.length > 0
                     ? { initial_options: initialTypes }
                     : {}),
                 },
-              },
+              } as any,
             ]
           : []),
       ],
