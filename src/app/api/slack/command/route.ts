@@ -7,6 +7,8 @@ import { handleContactTypeCommand } from "@/lib/slack/commands/contact-type";
 import { handleInventoryCommand, handleInboundCommand, handleOutboundCommand } from "@/lib/slack/commands/inventory";
 import { handleOrderCommand, handleOrderCreateCommand } from "@/lib/slack/commands/order";
 import { handleDashboardCommand } from "@/lib/slack/commands/dashboard";
+import { handleProfileCommand } from "@/lib/slack/commands/profile";
+import { handleOperationCommand } from "@/lib/slack/commands/operation";
 import { postToResponseUrl } from "@/lib/slack/deferred-response";
 import { logger } from "@/lib/logger";
 
@@ -107,6 +109,14 @@ export async function POST(request: NextRequest) {
 
   if (command === "/dashboard") {
     return deferCommand(responseUrl, command, () => handleDashboardCommand());
+  }
+
+  if (command === "/profile") {
+    return deferCommand(responseUrl, command, () => handleProfileCommand(text));
+  }
+
+  if (command === "/operation") {
+    return deferCommand(responseUrl, command, () => handleOperationCommand(text));
   }
 
   return NextResponse.json({ text: `알 수 없는 커맨드: ${command}` });

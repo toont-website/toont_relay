@@ -27,6 +27,18 @@ import {
   validateTemplateSms,
   executeTemplateSms,
 } from "@/lib/slack/actions/template-send";
+import {
+  openChecklistModal,
+  handleChecklistSubmit,
+} from "@/lib/slack/actions/checklist";
+import {
+  handleMoveNextStage,
+  handleStageMoveSubmit,
+} from "@/lib/slack/actions/stage-move";
+import {
+  openProfileEditModal,
+  handleProfileEditSubmit,
+} from "@/lib/slack/commands/profile";
 
 export async function POST(request: NextRequest) {
   const result = await parseSlackRequest(request);
@@ -81,6 +93,21 @@ export async function POST(request: NextRequest) {
       after(async () => {
         await executeTemplateSms(payload);
       });
+      return new NextResponse(null, { status: 200 });
+    }
+    if (callbackId === "checklist_modal") {
+      const response = await handleChecklistSubmit(payload);
+      if (response) return NextResponse.json(response);
+      return new NextResponse(null, { status: 200 });
+    }
+    if (callbackId === "stage_move_modal") {
+      const response = await handleStageMoveSubmit(payload);
+      if (response) return NextResponse.json(response);
+      return new NextResponse(null, { status: 200 });
+    }
+    if (callbackId === "profile_edit_modal") {
+      const response = await handleProfileEditSubmit(payload);
+      if (response) return NextResponse.json(response);
       return new NextResponse(null, { status: 200 });
     }
     if (callbackId === "sms_send_modal") {
@@ -156,6 +183,24 @@ export async function POST(request: NextRequest) {
       });
       return new NextResponse(null, { status: 200 });
     }
+    if (actionId === "edit_profile") {
+      const triggerId = payload.trigger_id;
+      const profileId = payload.actions[0].value;
+      await openProfileEditModal(triggerId, profileId);
+      return new NextResponse(null, { status: 200 });
+    }
+    if (actionId === "open_checklist") {
+      const triggerId = payload.trigger_id;
+      const orderId = payload.actions[0].value;
+      await openChecklistModal(triggerId, orderId);
+      return new NextResponse(null, { status: 200 });
+    }
+    if (actionId === "move_next_stage") {
+      const triggerId = payload.trigger_id;
+      const orderId = payload.actions[0].value;
+      await handleMoveNextStage(triggerId, orderId);
+      return new NextResponse(null, { status: 200 });
+    }
     if (actionId === "assign_order_contact") {
       const triggerId = payload.trigger_id;
       const orderId = payload.actions[0].value;
@@ -176,6 +221,31 @@ export async function POST(request: NextRequest) {
         const result = await client.getOrder(orderId);
         if (!result.data || !channelId || !userId) return;
         const message = buildOrderDetailMessage(result.data);
+        const slackClient = getSlackClient();
+        await slackClient.chat.postEphemeral({
+          channel: channelId,
+          user: userId,
+          ...message,
+        });
+      });
+      return new NextResponse(null, { status: 200 });
+    }
+    // stage_detail_* 동적 액션 — 칸반 단계별 상세 조회
+    if (actionId?.startsWith("stage_detail_")) {
+      const stageId = payload.actions[0].value;
+      const channelId = payload.channel?.id ?? payload.container?.channel_id;
+      const userId = payload.user?.id;
+      after(async () => {
+        const { getCsToolClient } = await import("@/lib/cs-tool/client");
+        const { buildStageDetailMessage } = await import("@/lib/slack/messages/operation");
+        const { getSlackClient } = await import("@/lib/slack/client");
+        const client = getCsToolClient();
+        const result = await client.getOperations({ stageId });
+        const board = result.data;
+        if (!board || !channelId || !userId) return;
+        const stageData = board.stages.find((s) => s.id === stageId);
+        if (!stageData) return;
+        const message = buildStageDetailMessage(stageData);
         const slackClient = getSlackClient();
         await slackClient.chat.postEphemeral({
           channel: channelId,
