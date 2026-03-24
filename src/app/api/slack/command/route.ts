@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { parseSlackRequest } from "@/lib/slack/verify";
 import { handleSmsCommand } from "@/lib/slack/commands/sms";
 import { handleContactCommand, openContactAddModal } from "@/lib/slack/commands/contact";
+import { handleContactTypeCommand } from "@/lib/slack/commands/contact-type";
 import { handleInventoryCommand, handleInboundCommand, handleOutboundCommand } from "@/lib/slack/commands/inventory";
 import { handleOrderCommand, handleOrderCreateCommand } from "@/lib/slack/commands/order";
 import { handleDashboardCommand } from "@/lib/slack/commands/dashboard";
@@ -70,6 +71,10 @@ export async function POST(request: NextRequest) {
       return new NextResponse(null, { status: 200 });
     }
     return deferCommand(responseUrl, command, () => handleContactCommand(text));
+  }
+
+  if (command === "/contact-type") {
+    return deferCommand(responseUrl, command, () => handleContactTypeCommand(text));
   }
 
   if (command === "/stock") {
