@@ -45,6 +45,7 @@ export interface CreateOrderParams {
   dueDate?: string;
   channel?: string;
   notes?: string;
+  profileId?: string;
 }
 
 export interface CreateOrderResponse {

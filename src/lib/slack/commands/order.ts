@@ -111,16 +111,20 @@ export async function handleOrderCommand(text: string) {
 }
 
 /**
- * /order-add → 모달 오픈 (상품 드롭다운 + 고객 정보 입력)
+ * /order-add → 모달 오픈 (상품 드롭다운 + 고객 정보 입력 + 프로필 연동)
  */
 export async function handleOrderCreateCommand(triggerId: string) {
   const client = getCsToolClient();
   const slackClient = getSlackClient();
 
   try {
-    // 재고(상품) 목록 가져오기
-    const inventoryResult = await client.getInventory();
+    // 재고 + 프로필 병렬 로드
+    const [inventoryResult, profilesResult] = await Promise.all([
+      client.getInventory(),
+      client.getProfiles(),
+    ]);
     const items = inventoryResult.data ?? [];
+    const profiles = profilesResult.data ?? [];
 
     const productOptions = items.map((item) => ({
       text: {
@@ -129,6 +133,17 @@ export async function handleOrderCreateCommand(triggerId: string) {
       },
       value: JSON.stringify({ name: item.name, sku: item.sku }),
     }));
+
+    // 프로필 정보를 private_metadata에 저장 (block_actions에서 참조)
+    const metadata = JSON.stringify({
+      profiles: profiles.map((p) => ({
+        id: p.id,
+        name: p.name,
+        skus: p.skus,
+        isDefault: p.isDefault,
+        contactTypeIds: p.contactTypeIds,
+      })),
+    });
 
     const blocks: any[] = [
       {
@@ -158,6 +173,7 @@ export async function handleOrderCreateCommand(triggerId: string) {
       blocks.push({
         type: "input",
         block_id: "product_block",
+        dispatch_action: true,
         label: { type: "plain_text", text: "상품" },
         element: {
           type: "static_select",
@@ -231,6 +247,7 @@ export async function handleOrderCreateCommand(triggerId: string) {
       view: {
         type: "modal",
         callback_id: "order_add_modal",
+        private_metadata: metadata,
         title: { type: "plain_text", text: "주문 등록" },
         submit: { type: "plain_text", text: "등록" },
         close: { type: "plain_text", text: "취소" },
@@ -247,6 +264,226 @@ export async function handleOrderCreateCommand(triggerId: string) {
 }
 
 /**
+ * 상품 선택 시 프로필 매칭 → 모달 동적 갱신 (block_actions)
+ */
+export async function handleProductSelect(payload: any) {
+  const slackClient = getSlackClient();
+  const view = payload.view;
+  const selectedOption = payload.actions[0]?.selected_option;
+  if (!selectedOption) return;
+
+  const parsed = JSON.parse(selectedOption.value);
+  const sku = parsed.sku as string;
+
+  let profiles: Array<{
+    id: string;
+    name: string;
+    skus: string[];
+    isDefault: boolean;
+    contactTypeIds: string[];
+  }> = [];
+  try {
+    const meta = JSON.parse(view.private_metadata);
+    profiles = meta.profiles ?? [];
+  } catch { /* ignore */ }
+
+  // SKU에 매칭되는 프로필 필터
+  const matched = profiles.filter((p) => p.skus.includes(sku));
+  const defaultProfile = profiles.find((p) => p.isDefault);
+
+  // 기존 블럭에서 프로필/연락처 블럭 제거하고 재구성
+  const baseBlocks = view.blocks.filter(
+    (b: any) =>
+      !b.block_id?.startsWith("profile_") && !b.block_id?.startsWith("order_contact_")
+  );
+
+  // quantity_block 뒤에 프로필 블럭 삽입
+  const quantityIdx = baseBlocks.findIndex((b: any) => b.block_id === "quantity_block");
+  const insertIdx = quantityIdx >= 0 ? quantityIdx + 1 : baseBlocks.length;
+
+  const newBlocks: any[] = [];
+
+  let selectedProfileId: string | undefined;
+
+  if (matched.length === 1) {
+    // 프로필 1개: 자동 선택 (context 블록)
+    selectedProfileId = matched[0].id;
+    newBlocks.push({
+      type: "section",
+      block_id: "profile_auto",
+      text: {
+        type: "mrkdwn",
+        text: `*프로필:* ${matched[0].name} (자동 선택)`,
+      },
+    });
+  } else if (matched.length >= 2) {
+    // 프로필 2개+: 드롭다운
+    newBlocks.push({
+      type: "input",
+      block_id: "profile_select_block",
+      dispatch_action: true,
+      label: { type: "plain_text", text: "프로필" },
+      element: {
+        type: "static_select",
+        action_id: "profile_select",
+        placeholder: { type: "plain_text", text: "프로필을 선택하세요" },
+        options: matched.map((p) => ({
+          text: { type: "plain_text", text: p.name },
+          value: p.id,
+        })),
+      },
+    });
+  } else if (defaultProfile) {
+    // 매칭 0개 → 기본 프로필
+    selectedProfileId = defaultProfile.id;
+    newBlocks.push({
+      type: "section",
+      block_id: "profile_auto",
+      text: {
+        type: "mrkdwn",
+        text: `*프로필:* ${defaultProfile.name} (기본)`,
+      },
+    });
+  }
+
+  // 프로필이 확정된 경우 연락처 external_select 추가
+  if (selectedProfileId) {
+    const profile = profiles.find((p) => p.id === selectedProfileId);
+    if (profile && profile.contactTypeIds.length > 0) {
+      const client = getCsToolClient();
+      const typesResult = await client.getContactTypes();
+      const allTypes = typesResult.data ?? [];
+
+      for (const typeId of profile.contactTypeIds) {
+        const ct = allTypes.find((t) => t.id === typeId);
+        if (!ct) continue;
+        newBlocks.push({
+          type: "input",
+          block_id: `order_contact_${ct.slug}`,
+          label: { type: "plain_text", text: `${ct.name} 연락처` },
+          optional: true,
+          element: {
+            type: "external_select",
+            action_id: `contact_select_${ct.slug}`,
+            placeholder: { type: "plain_text", text: `${ct.name} 검색...` },
+            min_query_length: 1,
+          },
+        });
+      }
+    }
+  }
+
+  // 메타데이터에 선택된 profileId 추가
+  let updatedMeta: any = {};
+  try {
+    updatedMeta = JSON.parse(view.private_metadata);
+  } catch { /* ignore */ }
+  updatedMeta.selectedProfileId = selectedProfileId;
+
+  const finalBlocks = [
+    ...baseBlocks.slice(0, insertIdx),
+    ...newBlocks,
+    ...baseBlocks.slice(insertIdx),
+  ];
+
+  await slackClient.views.update({
+    view_id: view.id,
+    view: {
+      type: "modal",
+      callback_id: "order_add_modal",
+      private_metadata: JSON.stringify(updatedMeta),
+      title: { type: "plain_text", text: "주문 등록" },
+      submit: { type: "plain_text", text: "등록" },
+      close: { type: "plain_text", text: "취소" },
+      blocks: finalBlocks,
+    },
+  });
+}
+
+/**
+ * 프로필 드롭다운 선택 시 연락처 external_select 동적 추가
+ */
+export async function handleProfileSelect(payload: any) {
+  const slackClient = getSlackClient();
+  const view = payload.view;
+  const profileId = payload.actions[0]?.selected_option?.value;
+  if (!profileId) return;
+
+  let profiles: Array<{
+    id: string;
+    name: string;
+    skus: string[];
+    isDefault: boolean;
+    contactTypeIds: string[];
+  }> = [];
+  try {
+    const meta = JSON.parse(view.private_metadata);
+    profiles = meta.profiles ?? [];
+  } catch { /* ignore */ }
+
+  const profile = profiles.find((p) => p.id === profileId);
+  if (!profile) return;
+
+  // 기존 연락처 블럭 제거
+  const baseBlocks = view.blocks.filter(
+    (b: any) => !b.block_id?.startsWith("order_contact_")
+  );
+
+  const newContactBlocks: any[] = [];
+  if (profile.contactTypeIds.length > 0) {
+    const client = getCsToolClient();
+    const typesResult = await client.getContactTypes();
+    const allTypes = typesResult.data ?? [];
+
+    for (const typeId of profile.contactTypeIds) {
+      const ct = allTypes.find((t) => t.id === typeId);
+      if (!ct) continue;
+      newContactBlocks.push({
+        type: "input",
+        block_id: `order_contact_${ct.slug}`,
+        label: { type: "plain_text", text: `${ct.name} 연락처` },
+        optional: true,
+        element: {
+          type: "external_select",
+          action_id: `contact_select_${ct.slug}`,
+          placeholder: { type: "plain_text", text: `${ct.name} 검색...` },
+          min_query_length: 1,
+        },
+      });
+    }
+  }
+
+  // profile_select_block 뒤에 삽입
+  const profileIdx = baseBlocks.findIndex((b: any) => b.block_id === "profile_select_block");
+  const insertIdx = profileIdx >= 0 ? profileIdx + 1 : baseBlocks.length;
+
+  let updatedMeta: any = {};
+  try {
+    updatedMeta = JSON.parse(view.private_metadata);
+  } catch { /* ignore */ }
+  updatedMeta.selectedProfileId = profileId;
+
+  const finalBlocks = [
+    ...baseBlocks.slice(0, insertIdx),
+    ...newContactBlocks,
+    ...baseBlocks.slice(insertIdx),
+  ];
+
+  await slackClient.views.update({
+    view_id: view.id,
+    view: {
+      type: "modal",
+      callback_id: "order_add_modal",
+      private_metadata: JSON.stringify(updatedMeta),
+      title: { type: "plain_text", text: "주문 등록" },
+      submit: { type: "plain_text", text: "등록" },
+      close: { type: "plain_text", text: "취소" },
+      blocks: finalBlocks,
+    },
+  });
+}
+
+/**
  * order_add_modal view_submission — 검증만 (동기, 3초 내 응답)
  */
 export interface ValidatedOrderAdd {
@@ -258,6 +495,8 @@ export interface ValidatedOrderAdd {
   address?: string;
   dueDate?: string;
   notes?: string;
+  profileId?: string;
+  contactIds: string[];
 }
 
 export async function validateOrderAdd(
@@ -314,14 +553,41 @@ export async function validateOrderAdd(
     };
   }
 
-  return { customerName, phone, itemDescription, quantity, sku, address, dueDate, notes };
+  // 프로필 ID 추출 (metadata 또는 드롭다운)
+  let profileId: string | undefined;
+  try {
+    const meta = JSON.parse(view.private_metadata ?? "{}");
+    profileId = meta.selectedProfileId;
+  } catch { /* ignore */ }
+
+  const profileSelect = values.profile_select_block?.profile_select?.selected_option?.value;
+  if (profileSelect) {
+    profileId = profileSelect;
+  }
+
+  // 연락처 ID 추출 (order_contact_* 블럭)
+  const contactIds: string[] = [];
+  for (const [blockId, blockValue] of Object.entries(values)) {
+    if (!blockId.startsWith("order_contact_")) continue;
+    const actionValue = Object.values(blockValue as any)[0] as any;
+    const selected = actionValue?.selected_option?.value;
+    if (!selected) continue;
+    try {
+      const parsed = JSON.parse(selected);
+      if (parsed.id && parsed.id !== "__direct_input__") {
+        contactIds.push(parsed.id);
+      }
+    } catch { /* ignore */ }
+  }
+
+  return { customerName, phone, itemDescription, quantity, sku, address, dueDate, notes, profileId, contactIds };
 }
 
 /**
  * order_add_modal — 주문 생성 실행 (비동기, after()에서 호출)
  */
 export async function executeOrderAdd(data: ValidatedOrderAdd): Promise<void> {
-  const { customerName, phone, itemDescription, quantity, sku, address, dueDate, notes } = data;
+  const { customerName, phone, itemDescription, quantity, sku, address, dueDate, notes, profileId, contactIds } = data;
 
   try {
     const client = getCsToolClient();
@@ -334,6 +600,7 @@ export async function executeOrderAdd(data: ValidatedOrderAdd): Promise<void> {
       address,
       dueDate,
       notes,
+      profileId,
       channel: "slack",
     });
 
@@ -342,7 +609,19 @@ export async function executeOrderAdd(data: ValidatedOrderAdd): Promise<void> {
       logger.warn({ customerName, sku, warning: inv.warning }, "주문 등록 — 재고 경고");
     }
 
-    logger.info({ customerName, itemDescription, quantity, sku }, "주문 등록 완료");
+    // 연락처 배정
+    const orderId = result.data?.order?.id;
+    if (orderId && contactIds.length > 0) {
+      for (const contactId of contactIds) {
+        try {
+          await client.assignOrderContact(orderId, contactId);
+        } catch (assignError) {
+          logger.warn({ orderId, contactId, error: assignError }, "주문 연락처 배정 실패");
+        }
+      }
+    }
+
+    logger.info({ customerName, itemDescription, quantity, sku, profileId, contactCount: contactIds.length }, "주문 등록 완료");
   } catch (error) {
     const msg = error instanceof Error ? error.message : "알 수 없는 에러";
     logger.error({ error: msg }, "주문 등록 실패");

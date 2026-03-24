@@ -3,7 +3,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { parseSlackRequest } from "@/lib/slack/verify";
 import { validateSmsSend, executeSmsSend } from "@/lib/slack/actions/sms-send";
 import { handleReplySms, handleRetrySms } from "@/lib/slack/actions/reply-sms";
-import { validateOrderAdd, executeOrderAdd } from "@/lib/slack/commands/order";
+import {
+  validateOrderAdd,
+  executeOrderAdd,
+  handleProductSelect,
+  handleProfileSelect,
+} from "@/lib/slack/commands/order";
 import { handleStockSubmission } from "@/lib/slack/commands/inventory";
 import { handleContactSelect } from "@/lib/slack/commands/sms";
 import {
@@ -92,6 +97,39 @@ export async function POST(request: NextRequest) {
     }
     if (actionId === "retry_sms") {
       await handleRetrySms(payload);
+      return new NextResponse(null, { status: 200 });
+    }
+    if (actionId === "product_select") {
+      after(async () => {
+        await handleProductSelect(payload);
+      });
+      return new NextResponse(null, { status: 200 });
+    }
+    if (actionId === "profile_select") {
+      after(async () => {
+        await handleProfileSelect(payload);
+      });
+      return new NextResponse(null, { status: 200 });
+    }
+    if (actionId === "view_order_detail") {
+      const orderId = payload.actions[0].value;
+      const channelId = payload.channel?.id ?? payload.container?.channel_id;
+      const userId = payload.user?.id;
+      after(async () => {
+        const { getCsToolClient } = await import("@/lib/cs-tool/client");
+        const { buildOrderDetailMessage } = await import("@/lib/slack/messages/order-detail");
+        const { getSlackClient } = await import("@/lib/slack/client");
+        const client = getCsToolClient();
+        const result = await client.getOrder(orderId);
+        if (!result.data || !channelId || !userId) return;
+        const message = buildOrderDetailMessage(result.data);
+        const slackClient = getSlackClient();
+        await slackClient.chat.postEphemeral({
+          channel: channelId,
+          user: userId,
+          ...message,
+        });
+      });
       return new NextResponse(null, { status: 200 });
     }
   }
