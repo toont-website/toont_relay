@@ -9,6 +9,7 @@ export interface CsToolResponse<T> {
 // 주문
 export interface Order {
   id: string;
+  orderId?: string;
   customerName: string;
   itemDescription: string;
   quantity: number;
@@ -18,6 +19,7 @@ export interface Order {
   dueDate?: string;
   channel?: string;
   notes?: string;
+  progress?: number;
   currentStageId?: string;
   currentStageName?: string;
   profileId: string | null;
