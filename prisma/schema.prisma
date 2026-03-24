@@ -7,19 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Contact {
-  id          String       @id @default(cuid())
-  name        String
-  phoneNumber String       @unique // E.164: +821012345678
-  memo        String?
-  messages    MessageLog[]
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-
-  @@index([name])
-  @@index([phoneNumber])
-}
-
 model MessageLog {
   id             String   @id @default(cuid())
   direction      String   // "inbound" | "outbound"
@@ -30,8 +17,6 @@ model MessageLog {
   slackMessageTs String?  // 슬랙 메시지 ts
   slackThreadTs  String?  // 스레드 부모 ts
   slackUserId    String?  // 발신 담당자 Slack ID
-  contact        Contact? @relation(fields: [contactId], references: [id])
-  contactId      String?
   createdAt      DateTime @default(now())
 
   @@index([phoneNumber])
@@ -50,4 +35,15 @@ model HealthCheckLog {
   createdAt      DateTime  @default(now())
 
   @@index([createdAt])
+}
+
+model DeadlineAlertLog {
+  id        String   @id @default(cuid())
+  orderId   String
+  stageId   String
+  alertDate String   // YYYY-MM-DD (KST)
+  sentAt    DateTime @default(now())
+
+  @@unique([orderId, stageId, alertDate])
+  @@index([alertDate])
 }
