@@ -71,35 +71,38 @@ export function buildOrderDetailMessage(order: Order) {
     });
   }
 
-  // 체크리스트
+  // 체크리스트 — 단계별 개별 블럭 (3000자 제한 대응)
   if (order.checklistStatus.length > 0) {
     blocks.push({ type: "divider" });
-    const checklistLines = order.checklistStatus.flatMap((cs) => {
-      const header = `*━━ 체크리스트 (${cs.stageName}) ━━*`;
+    for (const cs of order.checklistStatus) {
       const items = cs.items.map((item) => {
         if (item.type === "checkbox") {
           return item.checked ? `☑️ ${item.label}` : `☐ ${item.label}`;
         }
         return `📝 ${item.label}: "${item.value ?? "-"}"`;
       });
-      return [header, ...items];
-    });
-    blocks.push({
-      type: "section",
-      text: { type: "mrkdwn", text: checklistLines.join("\n") },
-    });
+      const text = `*━━ 체크리스트 (${cs.stageName}) ━━*\n${items.join("\n")}`;
+      blocks.push({
+        type: "section",
+        text: { type: "mrkdwn", text: text.slice(0, 3000) },
+      });
+    }
   }
 
-  // 메시지 템플릿
+  // 메시지 템플릿 — 템플릿별 개별 블럭 (3000자 제한 대응)
   if (order.currentStageTemplates.length > 0) {
     blocks.push({ type: "divider" });
-    const templateLines = order.currentStageTemplates.map(
-      (t) => `📨 ${t.contactTypeName} → ${t.label}\n> ${t.text}`
-    );
     blocks.push({
       type: "section",
-      text: { type: "mrkdwn", text: `*━━ 메시지 템플릿 ━━*\n${templateLines.join("\n\n")}` },
+      text: { type: "mrkdwn", text: "*━━ 메시지 템플릿 ━━*" },
     });
+    for (const t of order.currentStageTemplates) {
+      const text = `📨 ${t.contactTypeName} → ${t.label}\n> ${t.text}`;
+      blocks.push({
+        type: "section",
+        text: { type: "mrkdwn", text: text.slice(0, 3000) },
+      });
+    }
   }
 
   // 액션 버튼
@@ -153,6 +156,15 @@ export function buildOrderDetailMessage(order: Order) {
     blocks.push({
       type: "context",
       elements: [{ type: "mrkdwn", text: `📝 메모: ${order.notes}` }],
+    });
+  }
+
+  // 블럭 수 가드 — Slack 최대 50블럭
+  if (blocks.length > 48) {
+    blocks.length = 47;
+    blocks.push({
+      type: "context",
+      elements: [{ type: "mrkdwn", text: "_...일부 정보가 생략됐어요._" }],
     });
   }
 

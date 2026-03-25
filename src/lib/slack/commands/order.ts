@@ -135,15 +135,33 @@ export async function handleOrderCreateCommand(triggerId: string) {
     }));
 
     // 프로필 정보를 private_metadata에 저장 (block_actions에서 참조)
-    const metadata = JSON.stringify({
-      profiles: profiles.map((p) => ({
-        id: p.id,
-        name: p.name,
-        skus: p.skus,
-        isDefault: p.isDefault,
-        contactTypeIds: p.contactTypeIds,
-      })),
-    });
+    // 크기 초과 시 단계적 축소 — Slack 3000바이트 제한 대응
+    const profileMap = profiles.map((p) => ({
+      id: p.id,
+      name: p.name,
+      skus: p.skus,
+      contactTypeIds: p.contactTypeIds,
+      isDefault: p.isDefault,
+    }));
+
+    let metadata: string;
+    const fullMetadata = JSON.stringify({ profiles: profileMap });
+
+    if (Buffer.byteLength(fullMetadata, "utf8") > 2900) {
+      // 축소 1단계: contactTypeIds 제거
+      const slimMetadata = JSON.stringify({
+        profiles: profiles.map((p) => ({ id: p.id, name: p.name, skus: p.skus })),
+        refetch: true,
+      });
+      if (Buffer.byteLength(slimMetadata, "utf8") > 2900) {
+        // 축소 2단계: ID만 저장
+        metadata = JSON.stringify({ profileIds: profiles.map((p) => p.id), refetch: true });
+      } else {
+        metadata = slimMetadata;
+      }
+    } else {
+      metadata = fullMetadata;
+    }
 
     const blocks: any[] = [
       {
@@ -275,10 +293,16 @@ export async function handleProductSelect(payload: any) {
   const selectedOptions: any[] = payload.actions[0]?.selected_options ?? [];
 
   // 선택된 SKU 목록 파싱
-  const selectedProducts = selectedOptions.map((opt: any) => {
-    const parsed = JSON.parse(opt.value);
-    return { name: parsed.name as string, sku: parsed.sku as string };
-  });
+  const selectedProducts = selectedOptions
+    .map((opt: any) => {
+      try {
+        const parsed = JSON.parse(opt.value);
+        return { name: parsed.name as string, sku: parsed.sku as string };
+      } catch {
+        return { name: opt.text?.text ?? "unknown", sku: "" };
+      }
+    })
+    .filter((p: { name: string; sku: string }) => p.sku);
 
   let profiles: Array<{
     id: string;
@@ -289,7 +313,19 @@ export async function handleProductSelect(payload: any) {
   }> = [];
   try {
     const meta = JSON.parse(view.private_metadata);
-    profiles = meta.profiles ?? [];
+    if (meta.refetch || meta.profileIds) {
+      // metadata가 축소된 경우 — API에서 재조회
+      const result = await getCsToolClient().getProfiles();
+      profiles = (result.data ?? []).map((p) => ({
+        id: p.id,
+        name: p.name,
+        skus: p.skus,
+        contactTypeIds: p.contactTypeIds,
+        isDefault: p.isDefault,
+      }));
+    } else {
+      profiles = meta.profiles ?? [];
+    }
   } catch { /* ignore */ }
 
   // 기존 블럭에서 수량/프로필/연락처 블럭 제거하고 재구성
@@ -445,7 +481,18 @@ export async function handleProfileSelect(payload: any) {
   }> = [];
   try {
     const meta = JSON.parse(view.private_metadata);
-    profiles = meta.profiles ?? [];
+    if (meta.refetch || meta.profileIds) {
+      const result = await getCsToolClient().getProfiles();
+      profiles = (result.data ?? []).map((p) => ({
+        id: p.id,
+        name: p.name,
+        skus: p.skus,
+        contactTypeIds: p.contactTypeIds,
+        isDefault: p.isDefault,
+      }));
+    } else {
+      profiles = meta.profiles ?? [];
+    }
   } catch { /* ignore */ }
 
   const profile = profiles.find((p) => p.id === profileId);

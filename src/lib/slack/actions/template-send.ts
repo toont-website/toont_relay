@@ -208,15 +208,19 @@ export async function executeTemplateSms(payload: any) {
       }),
     });
 
-    await prisma.messageLog.create({
-      data: {
-        direction: "outbound",
-        phoneNumber: phone,
-        message,
-        status: "failed",
-        slackActionId: `${slackActionId}_failed`,
-        slackUserId: userId,
-      },
-    });
+    try {
+      await prisma.messageLog.create({
+        data: {
+          direction: "outbound",
+          phoneNumber: phone,
+          message,
+          status: "failed",
+          slackActionId: `${slackActionId}_failed`,
+          slackUserId: userId,
+        },
+      });
+    } catch (dbError) {
+      logger.error({ dbError }, "실패 로그 저장 실패");
+    }
   }
 }

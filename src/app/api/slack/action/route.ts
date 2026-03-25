@@ -159,13 +159,21 @@ export async function POST(request: NextRequest) {
     }
     if (actionId === "product_select") {
       after(async () => {
-        await handleProductSelect(payload);
+        try {
+          await handleProductSelect(payload);
+        } catch (error) {
+          logger.error({ error }, "상품 선택 처리 실패");
+        }
       });
       return new NextResponse(null, { status: 200 });
     }
     if (actionId === "profile_select") {
       after(async () => {
-        await handleProfileSelect(payload);
+        try {
+          await handleProfileSelect(payload);
+        } catch (error) {
+          logger.error({ error }, "프로필 선택 처리 실패");
+        }
       });
       return new NextResponse(null, { status: 200 });
     }
@@ -235,19 +243,23 @@ export async function POST(request: NextRequest) {
       const channelId = payload.channel?.id ?? payload.container?.channel_id;
       const userId = payload.user?.id;
       after(async () => {
-        const { getCsToolClient } = await import("@/lib/cs-tool/client");
-        const { buildOrderDetailMessage } = await import("@/lib/slack/messages/order-detail");
-        const { getSlackClient } = await import("@/lib/slack/client");
-        const client = getCsToolClient();
-        const result = await client.getOrder(orderId);
-        if (!result.data || !channelId || !userId) return;
-        const message = buildOrderDetailMessage(result.data);
-        const slackClient = getSlackClient();
-        await slackClient.chat.postEphemeral({
-          channel: channelId,
-          user: userId,
-          ...message,
-        });
+        try {
+          const { getCsToolClient } = await import("@/lib/cs-tool/client");
+          const { buildOrderDetailMessage } = await import("@/lib/slack/messages/order-detail");
+          const { getSlackClient } = await import("@/lib/slack/client");
+          const client = getCsToolClient();
+          const result = await client.getOrder(orderId);
+          if (!result.data || !channelId || !userId) return;
+          const message = buildOrderDetailMessage(result.data);
+          const slackClient = getSlackClient();
+          await slackClient.chat.postEphemeral({
+            channel: channelId,
+            user: userId,
+            ...message,
+          });
+        } catch (error) {
+          logger.error({ error, orderId }, "주문 상세 조회 실패");
+        }
       });
       return new NextResponse(null, { status: 200 });
     }
@@ -257,22 +269,26 @@ export async function POST(request: NextRequest) {
       const channelId = payload.channel?.id ?? payload.container?.channel_id;
       const userId = payload.user?.id;
       after(async () => {
-        const { getCsToolClient } = await import("@/lib/cs-tool/client");
-        const { buildStageDetailMessage } = await import("@/lib/slack/messages/operation");
-        const { getSlackClient } = await import("@/lib/slack/client");
-        const client = getCsToolClient();
-        const result = await client.getOperations({ stageId });
-        const board = result.data;
-        if (!board || !channelId || !userId) return;
-        const stageData = board.stages.find((s) => s.id === stageId);
-        if (!stageData) return;
-        const message = buildStageDetailMessage(stageData);
-        const slackClient = getSlackClient();
-        await slackClient.chat.postEphemeral({
-          channel: channelId,
-          user: userId,
-          ...message,
-        });
+        try {
+          const { getCsToolClient } = await import("@/lib/cs-tool/client");
+          const { buildStageDetailMessage } = await import("@/lib/slack/messages/operation");
+          const { getSlackClient } = await import("@/lib/slack/client");
+          const client = getCsToolClient();
+          const result = await client.getOperations({ stageId });
+          const board = result.data;
+          if (!board || !channelId || !userId) return;
+          const stageData = board.stages.find((s) => s.id === stageId);
+          if (!stageData) return;
+          const message = buildStageDetailMessage(stageData);
+          const slackClient = getSlackClient();
+          await slackClient.chat.postEphemeral({
+            channel: channelId,
+            user: userId,
+            ...message,
+          });
+        } catch (error) {
+          logger.error({ error, stageId }, "단계 상세 조회 실패");
+        }
       });
       return new NextResponse(null, { status: 200 });
     }
