@@ -7,12 +7,12 @@ import { getEnv } from "@/lib/config/env";
 import { buildSmsSentMessage, buildSmsFailedMessage } from "@/lib/slack/messages/sms-sent";
 import { logger } from "@/lib/logger";
 
-// 📋 복사 버튼 → ephemeral 메시지로 텍스트 전달
-export async function handleCopyTemplate(orderId: string, userId: string, channelId: string) {
+// 📋 복사 버튼 → response_url로 텍스트 전달
+export async function handleCopyTemplate(orderId: string, responseUrl: string) {
+  const { postToResponseUrl } = await import("@/lib/slack/deferred-response");
   const client = getCsToolClient();
-  const slackClient = getSlackClient();
   const order = await client.getOrder(orderId);
-  if (!order.data) return;
+  if (!order.data || !responseUrl) return;
 
   const templates = order.data.currentStageTemplates;
   if (templates.length === 0) return;
@@ -21,9 +21,9 @@ export async function handleCopyTemplate(orderId: string, userId: string, channe
     .map((t) => `*[${t.contactTypeName} — ${t.label}]*\n${t.text}`)
     .join("\n\n");
 
-  await slackClient.chat.postEphemeral({
-    channel: channelId,
-    user: userId,
+  await postToResponseUrl(responseUrl, {
+    response_type: "ephemeral",
+    replace_original: false,
     text,
   });
 }

@@ -191,11 +191,14 @@ export async function POST(request: NextRequest) {
     }
     if (actionId === "copy_template") {
       const orderId = payload.actions[0].value;
-      const channelId = payload.channel?.id ?? payload.container?.channel_id;
-      const userId = payload.user?.id;
-      if (channelId && userId) {
+      const responseUrl = payload.response_url;
+      if (responseUrl) {
         after(async () => {
-          await handleCopyTemplate(orderId, userId, channelId);
+          try {
+            await handleCopyTemplate(orderId, responseUrl);
+          } catch (error) {
+            logger.error({ error, orderId }, "템플릿 복사 실패");
+          }
         });
       }
       return new NextResponse(null, { status: 200 });
@@ -252,23 +255,17 @@ export async function POST(request: NextRequest) {
     }
     if (actionId === "view_order_detail") {
       const orderId = payload.actions[0].value;
-      const channelId = payload.channel?.id ?? payload.container?.channel_id;
-      const userId = payload.user?.id;
+      const responseUrl = payload.response_url;
       after(async () => {
         try {
           const { getCsToolClient } = await import("@/lib/cs-tool/client");
           const { buildOrderDetailMessage } = await import("@/lib/slack/messages/order-detail");
-          const { getSlackClient } = await import("@/lib/slack/client");
+          const { postToResponseUrl } = await import("@/lib/slack/deferred-response");
           const client = getCsToolClient();
           const result = await client.getOrder(orderId);
-          if (!result.data || !channelId || !userId) return;
+          if (!result.data || !responseUrl) return;
           const message = buildOrderDetailMessage(result.data);
-          const slackClient = getSlackClient();
-          await slackClient.chat.postEphemeral({
-            channel: channelId,
-            user: userId,
-            ...message,
-          });
+          await postToResponseUrl(responseUrl, { ...message, replace_original: false });
         } catch (error) {
           logger.error({ error, orderId }, "주문 상세 조회 실패");
         }
@@ -278,26 +275,20 @@ export async function POST(request: NextRequest) {
     // stage_detail_* 동적 액션 — 칸반 단계별 상세 조회
     if (actionId?.startsWith("stage_detail_")) {
       const stageId = payload.actions[0].value;
-      const channelId = payload.channel?.id ?? payload.container?.channel_id;
-      const userId = payload.user?.id;
+      const responseUrl = payload.response_url;
       after(async () => {
         try {
           const { getCsToolClient } = await import("@/lib/cs-tool/client");
           const { buildStageDetailMessage } = await import("@/lib/slack/messages/operation");
-          const { getSlackClient } = await import("@/lib/slack/client");
+          const { postToResponseUrl } = await import("@/lib/slack/deferred-response");
           const client = getCsToolClient();
           const result = await client.getOperations({ stageId });
           const board = result.data;
-          if (!board || !channelId || !userId) return;
+          if (!board || !responseUrl) return;
           const stageData = board.stages.find((s) => s.id === stageId);
           if (!stageData) return;
           const message = buildStageDetailMessage(stageData);
-          const slackClient = getSlackClient();
-          await slackClient.chat.postEphemeral({
-            channel: channelId,
-            user: userId,
-            ...message,
-          });
+          await postToResponseUrl(responseUrl, { ...message, replace_original: false });
         } catch (error) {
           logger.error({ error, stageId }, "단계 상세 조회 실패");
         }
