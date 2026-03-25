@@ -156,5 +156,14 @@ export function buildStageDetailMessage(stage: OperationStage) {
     });
   }
 
+  // Slack 블록 50개 제한 방어
+  if (blocks.length > 48) {
+    blocks.length = 47;
+    blocks.push({
+      type: "context",
+      elements: [{ type: "mrkdwn", text: "_...일부 주문이 생략됐어요. `/order [주문ID]`로 상세 조회하세요._" }],
+    });
+  }
+
   return { response_type: "ephemeral" as const, text: " ", blocks };
 }

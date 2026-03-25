@@ -59,7 +59,7 @@ export async function handleOrderCommand(text: string) {
     const title = trimmed ? `"${trimmed}" 검색 결과` : "최근 주문";
 
     const blocks: any[] = [
-      { type: "header", text: { type: "plain_text", text: `📋 ${title} (${total}건)` } },
+      { type: "header", text: { type: "plain_text", text: `📋 ${title} (${total}건)`.slice(0, 150) } },
     ];
 
     for (const order of orders) {
@@ -129,7 +129,7 @@ export async function handleOrderCreateCommand(triggerId: string) {
     const productOptions = items.map((item) => ({
       text: {
         type: "plain_text" as const,
-        text: `${item.name} (${item.sku}) — ${item.quantity}${item.unit} 남음`,
+        text: `${item.name} (${item.sku}) — ${item.quantity}${item.unit} 남음`.slice(0, 75),
       },
       value: JSON.stringify({ name: item.name, sku: item.sku }),
     }));
@@ -442,6 +442,13 @@ export async function handleProductSelect(payload: any) {
   updatedMeta.selectedProfileId = selectedProfileId;
   updatedMeta.selectedProducts = selectedProducts;
 
+  let metadataStr = JSON.stringify(updatedMeta);
+  if (Buffer.byteLength(metadataStr, "utf8") > 2900) {
+    delete updatedMeta.profiles;
+    updatedMeta.refetch = true;
+    metadataStr = JSON.stringify(updatedMeta);
+  }
+
   const finalBlocks = [
     ...baseBlocks.slice(0, insertIdx),
     ...newBlocks,
@@ -454,7 +461,7 @@ export async function handleProductSelect(payload: any) {
     view: {
       type: "modal",
       callback_id: "order_add_modal",
-      private_metadata: JSON.stringify(updatedMeta),
+      private_metadata: metadataStr,
       title: { type: "plain_text", text: "주문 등록" },
       submit: { type: "plain_text", text: "등록" },
       close: { type: "plain_text", text: "취소" },
@@ -604,7 +611,12 @@ export async function validateOrderAdd(
     const errors: Record<string, string> = {};
 
     for (const opt of selectedProducts) {
-      const parsed = JSON.parse(opt.value);
+      let parsed;
+      try {
+        parsed = JSON.parse(opt.value);
+      } catch {
+        continue; // skip malformed option
+      }
       const productSku = parsed.sku as string;
       const productName = parsed.name as string;
 

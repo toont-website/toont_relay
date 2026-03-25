@@ -146,7 +146,13 @@ export async function POST(request: NextRequest) {
       return new NextResponse(null, { status: 200 });
     }
     if (actionId === "contact_select") {
-      await handleContactSelect(payload);
+      after(async () => {
+        try {
+          await handleContactSelect(payload);
+        } catch (error) {
+          logger.error({ error }, "연락처 선택 처리 실패");
+        }
+      });
       return new NextResponse(null, { status: 200 });
     }
     if (actionId === "reply_sms") {
@@ -154,7 +160,13 @@ export async function POST(request: NextRequest) {
       return new NextResponse(null, { status: 200 });
     }
     if (actionId === "retry_sms") {
-      await handleRetrySms(payload);
+      after(async () => {
+        try {
+          await handleRetrySms(payload);
+        } catch (error) {
+          logger.error({ error }, "SMS 재시도 실패");
+        }
+      });
       return new NextResponse(null, { status: 200 });
     }
     if (actionId === "product_select") {
