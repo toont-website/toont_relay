@@ -79,5 +79,18 @@ export async function handleOrderContactSubmit(payload: any) {
   }
 
   logger.info({ orderId }, "주문 연락처 배정 완료");
-  return null;
+  return {
+    response_action: "update",
+    view: {
+      type: "modal",
+      title: { type: "plain_text", text: "완료" },
+      close: { type: "plain_text", text: "닫기" },
+      blocks: [
+        {
+          type: "section",
+          text: { type: "mrkdwn", text: "연락처를 배정했어요." },
+        },
+      ],
+    },
+  };
 }

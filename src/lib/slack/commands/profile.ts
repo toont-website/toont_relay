@@ -207,7 +207,20 @@ export async function handleProfileEditSubmit(payload: any) {
       contactTypeIds,
     });
     logger.info({ profileId, name }, "프로필 수정 완료");
-    return null;
+    return {
+      response_action: "update",
+      view: {
+        type: "modal",
+        title: { type: "plain_text", text: "완료" },
+        close: { type: "plain_text", text: "닫기" },
+        blocks: [
+          {
+            type: "section",
+            text: { type: "mrkdwn", text: "프로필을 수정했어요." },
+          },
+        ],
+      },
+    };
   } catch (error) {
     const msg = error instanceof Error ? error.message : "알 수 없는 에러";
     logger.error({ profileId, error: msg }, "프로필 수정 실패");

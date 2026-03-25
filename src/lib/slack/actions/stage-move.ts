@@ -128,7 +128,7 @@ export async function handleStageMoveSubmit(payload: any) {
     logger.error("private_metadata 파싱 실패 (handleStageMoveSubmit)");
     return null;
   }
-  const { orderId, nextStageId, hasIncomplete } = metadata;
+  const { orderId, nextStageId, nextStageName, hasIncomplete } = metadata;
   const values = payload.view.state.values;
 
   const skipChecklist = hasIncomplete
@@ -157,7 +157,20 @@ export async function handleStageMoveSubmit(payload: any) {
     });
 
     logger.info({ orderId, nextStageId, skipChecklist }, "단계 이동 완료");
-    return null;
+    return {
+      response_action: "update",
+      view: {
+        type: "modal",
+        title: { type: "plain_text", text: "완료" },
+        close: { type: "plain_text", text: "닫기" },
+        blocks: [
+          {
+            type: "section",
+            text: { type: "mrkdwn", text: `${nextStageName ?? "다음"} 단계로 이동했어요.` },
+          },
+        ],
+      },
+    };
   } catch (error) {
     const msg = error instanceof Error ? error.message : "알 수 없는 에러";
     logger.error({ error: msg, orderId }, "단계 이동 실패");

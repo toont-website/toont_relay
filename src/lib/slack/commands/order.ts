@@ -414,6 +414,7 @@ export async function handleProductSelect(payload: any) {
 
   await slackClient.views.update({
     view_id: view.id,
+    hash: view.hash,
     view: {
       type: "modal",
       callback_id: "order_add_modal",
@@ -497,6 +498,7 @@ export async function handleProfileSelect(payload: any) {
 
   await slackClient.views.update({
     view_id: view.id,
+    hash: view.hash,
     view: {
       type: "modal",
       callback_id: "order_add_modal",

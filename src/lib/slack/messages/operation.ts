@@ -64,6 +64,15 @@ export function buildKanbanMessage(board: OperationBoard) {
     blocks.push({ type: "actions", elements: buttons.slice(0, 5) });
   }
 
+  // Slack 블록 50개 제한 방어
+  if (blocks.length > 48) {
+    blocks.length = 47;
+    blocks.push({
+      type: "context",
+      elements: [{ type: "mrkdwn", text: "_...일부 단계가 생략됐어요. `/operation [단계명]`으로 상세 조회하세요._" }],
+    });
+  }
+
   return { response_type: "ephemeral" as const, text: " ", blocks };
 }
 

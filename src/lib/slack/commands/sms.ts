@@ -225,6 +225,7 @@ export async function handleContactSelect(payload: any) {
   const client = getSlackClient();
   await client.views.update({
     view_id: viewId,
+    hash: payload.view?.hash,
     view: {
       type: "modal",
       callback_id: "sms_send_modal",

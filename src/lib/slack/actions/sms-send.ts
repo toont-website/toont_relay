@@ -31,6 +31,16 @@ export async function validateSmsSend(
   let recipientValue =
     view.state?.values?.recipient_block?.contact_select?.selected_option?.value ?? null;
 
+  // selected_option.value가 JSON 문자열일 수 있음 (예: {"id":"...","phone":"+82...","name":"Kim"})
+  if (recipientValue) {
+    try {
+      const parsed = JSON.parse(recipientValue);
+      recipientValue = parsed.phone ?? recipientValue;
+    } catch {
+      // JSON이 아니면 그대로 전화번호로 사용
+    }
+  }
+
   let threadTs: string | null = null;
   if (view.private_metadata) {
     try {

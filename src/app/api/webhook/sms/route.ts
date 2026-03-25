@@ -23,7 +23,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
-  const event: SmsGatewayWebhookEvent = JSON.parse(body);
+  let event: SmsGatewayWebhookEvent;
+  try {
+    event = JSON.parse(body);
+  } catch {
+    logger.error("SMS 웹훅 body 파싱 실패");
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
   logger.info({ eventType: event.event, payloadKeys: Object.keys(event.payload ?? {}), webhookId: event.webhookId }, "SMS 웹훅 수신");
 
   if (event.event !== "sms:received") {

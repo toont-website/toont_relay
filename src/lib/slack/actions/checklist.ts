@@ -121,13 +121,30 @@ export async function handleChecklistSubmit(payload: any) {
       checklistStatus: [{ stageId, items }],
     });
     logger.info({ orderId, stageId, itemCount: items.length }, "체크리스트 저장");
-    return null;
+    return {
+      response_action: "update",
+      view: {
+        type: "modal",
+        title: { type: "plain_text", text: "완료" },
+        close: { type: "plain_text", text: "닫기" },
+        blocks: [
+          {
+            type: "section",
+            text: { type: "mrkdwn", text: "체크리스트를 저장했어요." },
+          },
+        ],
+      },
+    };
   } catch (error) {
     const msg = error instanceof Error ? error.message : "알 수 없는 에러";
     logger.error({ orderId, stageId, error: msg }, "체크리스트 저장 실패");
+    const firstItem = items[0];
+    const blockId = firstItem
+      ? (firstItem.checked !== undefined ? `check_${firstItem.id}` : `text_${firstItem.id}`)
+      : "unknown";
     return {
       response_action: "errors" as const,
-      errors: { [`check_${items[0]?.id ?? "unknown"}`]: `저장 실패: ${msg}` },
+      errors: { [blockId]: `저장 실패: ${msg}` },
     };
   }
 }

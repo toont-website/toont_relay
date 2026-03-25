@@ -158,7 +158,20 @@ export async function handleContactAddSubmit(payload: any) {
     };
   }
 
-  return null;
+  return {
+    response_action: "update",
+    view: {
+      type: "modal",
+      title: { type: "plain_text", text: "완료" },
+      close: { type: "plain_text", text: "닫기" },
+      blocks: [
+        {
+          type: "section",
+          text: { type: "mrkdwn", text: "연락처를 등록했어요." },
+        },
+      ],
+    },
+  };
 }
 
 /**
@@ -307,7 +320,20 @@ export async function handleContactEditSubmit(payload: any) {
     };
   }
 
-  return null;
+  return {
+    response_action: "update",
+    view: {
+      type: "modal",
+      title: { type: "plain_text", text: "완료" },
+      close: { type: "plain_text", text: "닫기" },
+      blocks: [
+        {
+          type: "section",
+          text: { type: "mrkdwn", text: "연락처를 수정했어요." },
+        },
+      ],
+    },
+  };
 }
 
 // ── 내부 함수 ──
