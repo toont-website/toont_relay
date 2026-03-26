@@ -12,6 +12,7 @@ export interface Order {
   orderId?: string;
   customerName: string;
   itemDescription: string | null;
+  productNames: string | null;
   quantity: number;
   phone: string;
   sku: string | null;

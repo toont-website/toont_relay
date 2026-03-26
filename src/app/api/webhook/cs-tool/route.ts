@@ -55,14 +55,11 @@ export async function POST(request: NextRequest) {
 
   try {
     if (event.event === "order.created") {
-      // payload 구조 자동 감지: { order: {...} } 또는 직접 order 객체
       const order = event.data.order ?? event.data;
       const phone = order.phone ? displayPhoneNumber(order.phone) : "-";
-
       const stageName = order.currentStageName ?? "접수";
-      const itemInfo = order.itemDescription
-        ? `${order.itemDescription}${order.quantity ? ` x${order.quantity}개` : ""}`
-        : "-";
+      const product = order.productNames ?? order.itemDescription ?? "-";
+      const orderDesc = order.itemDescription ?? "-";
 
       await slackClient.chat.postMessage({
         channel: env.SLACK_CHANNEL_ORDER,
@@ -75,7 +72,7 @@ export async function POST(request: NextRequest) {
                 type: "section",
                 text: {
                   type: "mrkdwn",
-                  text: `📋 *새 주문이 등록됐어요!*\n\n*주문:* [${stageName}] ${order.customerName} (${phone})\n*상품:* ${itemInfo}${order.dueDate ? `\n*납기:* ${order.dueDate}` : ""}\n\n<https://cs.toont.co.kr/?view=operations&orderId=${order.id}|CS Tool에서 관리하기>`,
+                  text: `📋 *새 주문이 등록됐어요!*\n\n*주문자:* ${order.customerName} (${phone})\n*주문내용:* ${orderDesc}\n*상품:* ${product}\n*단계:* ${stageName}${order.address ? `\n*주소:* ${order.address}` : ""}${order.dueDate ? `\n*납기:* ${order.dueDate}` : ""}\n\n<https://cs.toont.co.kr/?view=operations&orderId=${order.id}|CS Tool에서 관리하기>`,
                 },
               },
             ],
@@ -87,17 +84,11 @@ export async function POST(request: NextRequest) {
     if (event.event === "order.status_changed") {
       const order = event.data.order ?? event.data;
       const changes = event.data.changes ?? {};
-      const phone = order.phone ? displayPhoneNumber(order.phone) : "";
-      const phoneDisplay = phone ? ` (${phone})` : "";
-
-      // 단계 이름: changes에서 다양한 필드명 지원
-      const prevStage = changes.previousStageName ?? changes.fromStageName ?? changes.previousStatus ?? "-";
+      const phone = order.phone ? displayPhoneNumber(order.phone) : "-";
+      const product = order.productNames ?? order.itemDescription ?? "-";
+      const orderDesc = order.itemDescription ?? "-";
       const currStage = changes.currentStageName ?? changes.stageName ?? changes.toStageName ?? changes.currentStatus ?? order.currentStageName ?? "-";
-
-      // 상품 정보: quantity가 없을 수 있음
-      const itemInfo = order.itemDescription
-        ? `${order.itemDescription}${order.quantity ? ` x${order.quantity}` : ""}`
-        : "-";
+      const prevStage = changes.previousStageName ?? changes.fromStageName ?? changes.previousStatus ?? "-";
 
       await slackClient.chat.postMessage({
         channel: env.SLACK_CHANNEL_OPERATION,
@@ -110,7 +101,7 @@ export async function POST(request: NextRequest) {
                 type: "section",
                 text: {
                   type: "mrkdwn",
-                  text: `🔄 *주문 상태가 변경됐어요*\n\n*주문:* [${currStage}] ${order.customerName}${phoneDisplay}\n*상품:* ${itemInfo}\n*변경:* ${prevStage} → *${currStage}*\n\n<https://cs.toont.co.kr/?view=operations&orderId=${order.id}|CS Tool에서 관리하기>`,
+                  text: `🔄 *주문 상태가 변경됐어요*\n\n*주문자:* ${order.customerName} (${phone})\n*주문내용:* ${orderDesc}\n*상품:* ${product}\n*단계:* ${prevStage} → *${currStage}*${order.address ? `\n*주소:* ${order.address}` : ""}\n\n<https://cs.toont.co.kr/?view=operations&orderId=${order.id}|CS Tool에서 관리하기>`,
                 },
               },
             ],
