@@ -253,7 +253,14 @@ export interface StageTemplate {
 
 // 웹훅 이벤트
 export interface CsToolWebhookEvent {
-  event: "order.created" | "order.status_changed" | "inventory.updated" | "inventory.low_stock";
+  event:
+    | "order.created"
+    | "order.deleted"
+    | "order.stage_changed"
+    | "order.deadline_changed"
+    | "order.status_changed"
+    | "inventory.updated"
+    | "inventory.low_stock";
   data: any;
   timestamp: string;
 }
