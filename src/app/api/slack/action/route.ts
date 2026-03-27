@@ -307,6 +307,21 @@ export async function POST(request: NextRequest) {
       }
       return new NextResponse(null, { status: 200 });
     }
+    if (actionId === "order_page_prev" || actionId === "order_page_next") {
+      const responseUrl = payload.response_url;
+      after(async () => {
+        try {
+          const { page, search } = JSON.parse(payload.actions[0].value);
+          const { handleOrderCommand } = await import("@/lib/slack/commands/order");
+          const message = await handleOrderCommand(search ?? "", page);
+          const { postToResponseUrl } = await import("@/lib/slack/deferred-response");
+          await postToResponseUrl(responseUrl, { ...message, replace_original: true });
+        } catch (error) {
+          logger.error({ error }, "주문 페이지 이동 실패");
+        }
+      });
+      return new NextResponse(null, { status: 200 });
+    }
     // stage_detail_* 동적 액션 — 칸반 단계별 상세 조회
     if (actionId?.startsWith("stage_detail_")) {
       const stageId = payload.actions[0].value;

@@ -113,12 +113,17 @@ function preserveDateValue(
 // /order [검색어]
 // ---------------------------------------------------------------------------
 
-export async function handleOrderCommand(text: string) {
+const PAGE_SIZE = 5;
+
+export async function handleOrderCommand(text: string, page: number = 1) {
   const trimmed = text.trim();
   const client = getCsToolClient();
 
   try {
-    const filters: Record<string, string> = { limit: "10" };
+    const filters: Record<string, string> = {
+      limit: String(PAGE_SIZE),
+      page: String(page),
+    };
     if (trimmed) {
       const statusMap: Record<string, string> = {
         대기: "pending",
@@ -137,11 +142,12 @@ export async function handleOrderCommand(text: string) {
     const result = await client.getOrders(filters);
     const orders = result.data ?? [];
 
-    if (orders.length === 0) {
+    if (orders.length === 0 && page === 1) {
       return { text: trimmed ? `"${trimmed}" 검색 결과가 없어요.` : "주문이 없어요." };
     }
 
     const total = result.meta?.total ?? orders.length;
+    const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
     const title = trimmed ? `"${trimmed}" 검색 결과` : "최근 주문";
 
     const blocks: any[] = [
@@ -168,9 +174,33 @@ export async function handleOrderCommand(text: string) {
       });
     }
 
+    // 페이지 네비게이션 버튼
+    const navButtons: any[] = [];
+    if (page > 1) {
+      navButtons.push({
+        type: "button",
+        text: { type: "plain_text", text: "◀ 이전" },
+        action_id: "order_page_prev",
+        value: JSON.stringify({ page: page - 1, search: trimmed }),
+      });
+    }
+    if (total > page * PAGE_SIZE) {
+      navButtons.push({
+        type: "button",
+        text: { type: "plain_text", text: "다음 ▶" },
+        action_id: "order_page_next",
+        value: JSON.stringify({ page: page + 1, search: trimmed }),
+      });
+    }
+    if (navButtons.length > 0) {
+      blocks.push({ type: "actions", elements: navButtons });
+    }
+
     blocks.push({
       type: "context",
-      elements: [{ type: "mrkdwn", text: `<https://cs.toont.co.kr/?view=operations|📋 CS Tool에서 전체 주문 보기>` }],
+      elements: [
+        { type: "mrkdwn", text: `페이지 ${page}/${totalPages} (총 ${total}건)  ·  <https://cs.toont.co.kr/?view=operations|CS Tool에서 전체 보기>` },
+      ],
     });
 
     return { response_type: "ephemeral" as const, text: " ", blocks };
