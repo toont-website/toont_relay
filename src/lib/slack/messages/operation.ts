@@ -1,4 +1,5 @@
 import { type OperationBoard, type OperationStage, type Order, getOrderChannel } from "@/lib/cs-tool/types";
+import { formatPhoneNumber } from "@/lib/utils/phone";
 
 const STAGE_EMOJI: Record<string, string> = {
   blue: "🔵",
@@ -19,6 +20,62 @@ function isDeadlineApproaching(deadline: string | null): boolean {
   return d <= tomorrow;
 }
 
+/** 주문 한 줄 포맷 (칸반 요약용) */
+function formatOrderLine(o: Order): string {
+  const phone = o.phone ? formatPhoneNumber(o.phone) : "";
+  const channel = getOrderChannel(o);
+  const productName = o.productNames ?? o.itemDescription ?? "-";
+  const deadline = o.stageDeadline
+    ? new Date(o.stageDeadline).toLocaleDateString("ko-KR")
+    : o.dueDate ?? "-";
+  const warn = isDeadlineApproaching(o.stageDeadline) ? " ⚠️" : "";
+
+  const lines = [
+    `👤 *${o.customerName}*${phone ? ` (${phone})` : ""}`,
+    `📦 ${channel ? `${channel} / ` : ""}${productName} x${o.quantity}`,
+  ];
+  if (o.itemDescription && o.productNames) {
+    lines.push(`📝 ${o.itemDescription}`);
+  }
+  lines.push(`📅 마감: ${deadline}${warn}`);
+
+  return lines.join("\n");
+}
+
+/** 주문 상세 카드 포맷 (단계 상세용) */
+function formatOrderCard(order: Order): string {
+  const phone = order.phone ? formatPhoneNumber(order.phone) : "";
+  const channel = getOrderChannel(order);
+  const productName = order.productNames ?? order.itemDescription ?? "-";
+  const deadline = order.stageDeadline
+    ? new Date(order.stageDeadline).toLocaleDateString("ko-KR")
+    : order.dueDate ?? "-";
+  const warn = isDeadlineApproaching(order.stageDeadline) ? " ⚠️ D-1" : "";
+
+  const checklistInfo =
+    order.checklistStatus.length > 0
+      ? order.checklistStatus
+          .map((cs) => {
+            const done = cs.items.filter((i) =>
+              i.type === "checkbox" ? i.checked : !!i.value
+            ).length;
+            return cs.complete ? "✓" : `${done}/${cs.items.length}`;
+          })
+          .join(", ")
+      : "";
+
+  const lines = [
+    `👤 *${order.customerName}*${phone ? ` (${phone})` : ""}`,
+    `📦 ${channel ? `${channel} / ` : ""}${productName} x${order.quantity}`,
+  ];
+  if (order.itemDescription && order.productNames) {
+    lines.push(`📝 ${order.itemDescription}`);
+  }
+  lines.push(`📅 마감: ${deadline}${warn}${checklistInfo ? `  ·  체크: ${checklistInfo}` : ""}`);
+
+  return lines.join("\n");
+}
+
 export function buildKanbanMessage(board: OperationBoard, unassignedOrders: Order[] = []) {
   const blocks: any[] = [
     { type: "header", text: { type: "plain_text", text: "🔄 오퍼레이션 현황" } },
@@ -27,46 +84,56 @@ export function buildKanbanMessage(board: OperationBoard, unassignedOrders: Orde
 
   // 미배정 주문
   if (unassignedOrders.length > 0) {
-    const lines = unassignedOrders.slice(0, 5).map((o) => {
-      const channel = getOrderChannel(o);
-      const productName = o.productNames ?? o.itemDescription ?? "-";
-      return `📦 *${o.customerName}*${channel ? ` - ${channel}` : ""} / ${productName} x${o.quantity}`;
-    });
-    const more = unassignedOrders.length > 5 ? `\n  _...외 ${unassignedOrders.length - 5}건_` : "";
+    const lines = unassignedOrders.slice(0, 3).map(formatOrderLine);
+    const more = unassignedOrders.length > 3 ? `\n_...외 ${unassignedOrders.length - 3}건_` : "";
 
     blocks.push({
       type: "section",
       text: {
         type: "mrkdwn",
-        text: `⚪ *미배정* (${unassignedOrders.length}건)\n${lines.join("\n")}${more}`,
+        text: `⚪ *미배정* (${unassignedOrders.length}건)`,
       },
     });
+    for (const line of lines) {
+      blocks.push({
+        type: "section",
+        text: { type: "mrkdwn", text: line },
+      });
+    }
+    if (more) {
+      blocks.push({ type: "context", elements: [{ type: "mrkdwn", text: more }] });
+    }
   }
 
   for (const stage of board.stages) {
     const emoji = STAGE_EMOJI[stage.color] ?? "⚪";
-    const lines = stage.orders.slice(0, 5).map((o) => {
-      const channel = getOrderChannel(o) ?? "-";
-      const productName = o.productNames ?? o.itemDescription ?? "-";
-      const deadline = o.stageDeadline
-        ? new Date(o.stageDeadline).toLocaleDateString("ko-KR")
-        : "-";
-      const warn = isDeadlineApproaching(o.stageDeadline) ? " ⚠️ D-1" : "";
-      return `📦 *${o.customerName}* - ${channel} / ${productName} x${o.quantity}\n   주문내용: ${o.itemDescription ?? "-"}\n   📅 마감: ${deadline}${warn}`;
-    });
 
-    const more =
-      stage.orders.length > 5
-        ? `\n  _...외 ${stage.orders.length - 5}건_`
-        : "";
+    if (stage.orders.length === 0) {
+      blocks.push({
+        type: "section",
+        text: { type: "mrkdwn", text: `${emoji} *${stage.name}* (0건)` },
+      });
+      continue;
+    }
 
     blocks.push({
       type: "section",
-      text: {
-        type: "mrkdwn",
-        text: `${emoji} *${stage.name}* (${stage.orders.length}건)\n${lines.join("\n")}${more}`,
-      },
+      text: { type: "mrkdwn", text: `${emoji} *${stage.name}* (${stage.orders.length}건)` },
     });
+
+    for (const o of stage.orders.slice(0, 3)) {
+      blocks.push({
+        type: "section",
+        text: { type: "mrkdwn", text: formatOrderLine(o) },
+      });
+    }
+
+    if (stage.orders.length > 3) {
+      blocks.push({
+        type: "context",
+        elements: [{ type: "mrkdwn", text: `_...외 ${stage.orders.length - 3}건_` }],
+      });
+    }
   }
 
   // 단계별 상세 버튼
@@ -104,36 +171,13 @@ export function buildStageDetailMessage(stage: OperationStage, isLastStage = fal
     { type: "divider" },
   ];
 
-  const displayOrders = stage.orders.slice(0, 20);
+  const displayOrders = stage.orders.slice(0, 15);
 
   for (const order of displayOrders) {
-    const deadline = order.stageDeadline
-      ? new Date(order.stageDeadline).toLocaleDateString("ko-KR")
-      : "-";
-    const warn = isDeadlineApproaching(order.stageDeadline) ? " ⚠️ D-1" : "";
-
-    const channel = getOrderChannel(order) ?? "-";
-    const productName = order.productNames ?? order.itemDescription ?? "-";
-
-    const checklistInfo =
-      order.checklistStatus.length > 0
-        ? order.checklistStatus
-            .map((cs) => {
-              const done = cs.items.filter((i) =>
-                i.type === "checkbox" ? i.checked : !!i.value
-              ).length;
-              return cs.complete ? "✅ 완료" : `${done}/${cs.items.length} 완료`;
-            })
-            .join(", ")
-        : "";
-
     blocks.push(
       {
         type: "section",
-        text: {
-          type: "mrkdwn",
-          text: `📦 *${order.customerName}* - ${channel} / ${productName} x${order.quantity}\n   주문내용: ${order.itemDescription ?? "-"}\n   📅 마감: ${deadline}${warn}${checklistInfo ? `\n   체크리스트: ${checklistInfo}` : ""}`,
-        },
+        text: { type: "mrkdwn", text: formatOrderCard(order) },
       },
       {
         type: "actions",
@@ -166,14 +210,15 @@ export function buildStageDetailMessage(stage: OperationStage, isLastStage = fal
                 style: "primary",
               }]),
         ],
-      }
+      },
+      { type: "divider" },
     );
   }
 
-  if (stage.orders.length > 20) {
+  if (stage.orders.length > 15) {
     blocks.push({
       type: "context",
-      elements: [{ type: "mrkdwn", text: `_...외 ${stage.orders.length - 20}건_` }],
+      elements: [{ type: "mrkdwn", text: `_...외 ${stage.orders.length - 15}건_` }],
     });
   }
 
@@ -189,7 +234,7 @@ export function buildStageDetailMessage(stage: OperationStage, isLastStage = fal
     blocks.length = 47;
     blocks.push({
       type: "context",
-      elements: [{ type: "mrkdwn", text: "_...일부 주문이 생략됐어요. `/order [주문ID]`로 상세 조회하세요._" }],
+      elements: [{ type: "mrkdwn", text: "_...일부 주문이 생략됐어요._" }],
     });
   }
 
