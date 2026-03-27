@@ -9,6 +9,8 @@ import {
   executeOrderAdd,
   handleProductSelect,
   handleProfileSelect,
+  handleCustomerContactSelect,
+  handleFreightContactSelect,
 } from "@/lib/slack/commands/order";
 import { handleStockSubmission } from "@/lib/slack/commands/inventory";
 import { handleContactSelect } from "@/lib/slack/commands/sms";
@@ -176,6 +178,26 @@ export async function POST(request: NextRequest) {
           await handleRetrySms(payload);
         } catch (error) {
           logger.error({ error }, "SMS 재시도 실패");
+        }
+      });
+      return new NextResponse(null, { status: 200 });
+    }
+    if (actionId === "customer_contact_select") {
+      after(async () => {
+        try {
+          await handleCustomerContactSelect(payload);
+        } catch (error) {
+          logger.error({ error }, "주문자 선택 처리 실패");
+        }
+      });
+      return new NextResponse(null, { status: 200 });
+    }
+    if (actionId === "freight_contact_select") {
+      after(async () => {
+        try {
+          await handleFreightContactSelect(payload);
+        } catch (error) {
+          logger.error({ error }, "화물 선택 처리 실패");
         }
       });
       return new NextResponse(null, { status: 200 });

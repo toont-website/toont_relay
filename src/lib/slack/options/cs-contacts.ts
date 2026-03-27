@@ -7,7 +7,7 @@ const DIRECT_INPUT_VALUE = "__direct_input__";
 export { DIRECT_INPUT_VALUE };
 
 export async function searchContacts(query: string, contactType?: string) {
-  let contacts: { id: string; name: string; phone: string }[] = [];
+  let contacts: { id: string; name: string; phone: string; address: string | null }[] = [];
   try {
     const client = getCsToolClient();
     const res = await client.getContacts({
@@ -19,6 +19,7 @@ export async function searchContacts(query: string, contactType?: string) {
       id: c.id,
       name: c.name,
       phone: c.phone,
+      address: c.address,
     }));
     logger.debug({ query, contactType, count: contacts.length }, "연락처 검색 (CS Tool)");
   } catch (e) {
@@ -31,7 +32,7 @@ export async function searchContacts(query: string, contactType?: string) {
       type: "plain_text" as const,
       text: `${c.name} (${formatPhoneNumber(c.phone)})`,
     },
-    value: JSON.stringify({ id: c.id, phone: c.phone, name: c.name }),
+    value: JSON.stringify({ id: c.id, phone: c.phone, name: c.name, address: c.address }),
   }));
 
   const normalized = normalizePhoneNumber(query);
