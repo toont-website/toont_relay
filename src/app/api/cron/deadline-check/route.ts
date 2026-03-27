@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
         // 알림 발송
         await slackClient.chat.postMessage({
           channel: env.SLACK_CHANNEL_OPERATION,
-          text: " ",
+          text: `⏰ 마감 임박: ${order.customerName} — ${stage.name} (내일)`,
           attachments: [
             {
               color: "#FFB800",
