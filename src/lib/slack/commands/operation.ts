@@ -1,4 +1,5 @@
 import { getCsToolClient } from "@/lib/cs-tool/client";
+import type { Order } from "@/lib/cs-tool/types";
 import {
   buildKanbanMessage,
   buildStageDetailMessage,
@@ -37,14 +38,20 @@ export async function handleOperationCommand(text: string) {
     }
 
     // 전체 칸반 뷰
-    const result = await client.getOperations();
-    const board = result.data;
+    const [opsResult, ordersResult] = await Promise.all([
+      client.getOperations(),
+      client.getOrders({ status: "pending", limit: "50" }),
+    ]);
+    const board = opsResult.data;
 
     if (!board) {
       return { response_type: "ephemeral", text: "오퍼레이션 조회에 실패했어요." };
     }
 
-    return buildKanbanMessage(board);
+    // 미배정 주문 (currentStageId 없는 pending 주문)
+    const unassigned = (ordersResult.data ?? []).filter((o) => !o.currentStageId);
+
+    return buildKanbanMessage(board, unassigned);
   } catch (error) {
     const msg = error instanceof Error ? error.message : "알 수 없는 에러";
     logger.error({ error: msg }, "오퍼레이션 조회 실패");

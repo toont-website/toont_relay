@@ -1,4 +1,4 @@
-import { type OperationBoard, type OperationStage, getOrderChannel } from "@/lib/cs-tool/types";
+import { type OperationBoard, type OperationStage, type Order, getOrderChannel } from "@/lib/cs-tool/types";
 
 const STAGE_EMOJI: Record<string, string> = {
   blue: "🔵",
@@ -19,11 +19,29 @@ function isDeadlineApproaching(deadline: string | null): boolean {
   return d <= tomorrow;
 }
 
-export function buildKanbanMessage(board: OperationBoard) {
+export function buildKanbanMessage(board: OperationBoard, unassignedOrders: Order[] = []) {
   const blocks: any[] = [
     { type: "header", text: { type: "plain_text", text: "🔄 오퍼레이션 현황" } },
     { type: "divider" },
   ];
+
+  // 미배정 주문
+  if (unassignedOrders.length > 0) {
+    const lines = unassignedOrders.slice(0, 5).map((o) => {
+      const channel = getOrderChannel(o);
+      const productName = o.productNames ?? o.itemDescription ?? "-";
+      return `📦 *${o.customerName}*${channel ? ` - ${channel}` : ""} / ${productName} x${o.quantity}`;
+    });
+    const more = unassignedOrders.length > 5 ? `\n  _...외 ${unassignedOrders.length - 5}건_` : "";
+
+    blocks.push({
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `⚪ *미배정* (${unassignedOrders.length}건)\n${lines.join("\n")}${more}`,
+      },
+    });
+  }
 
   for (const stage of board.stages) {
     const emoji = STAGE_EMOJI[stage.color] ?? "⚪";
