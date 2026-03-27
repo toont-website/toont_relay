@@ -159,10 +159,11 @@ export async function handleOrderCommand(text: string, page: number = 1) {
     ];
 
     for (const order of orders) {
-      const channel = order.orderId ?? "-";
+      const channel = order.orderId || undefined;
       const productName = order.productNames ?? order.itemDescription ?? "-";
       const deadline = order.stageDeadline ?? order.dueDate ?? "-";
-      const stageName = order.currentStageName ?? "-";
+      const stageName = order.currentStageName
+        ?? (order.status === "completed" ? "완료" : order.status === "cancelled" ? "취소" : "미배정");
       const status = order.status === "completed" ? "✅" : order.status === "cancelled" ? "❌" : "🔵";
 
       blocks.push({ type: "divider" });
@@ -170,7 +171,7 @@ export async function handleOrderCommand(text: string, page: number = 1) {
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `${status} *${order.customerName}*  ·  ${channel}\n📦 ${productName} x${order.quantity}\n📝 ${order.itemDescription ?? "-"}\n🏷️ ${stageName}  ·  📅 ${deadline}`,
+          text: `${status} *${order.customerName}*${channel ? `  ·  ${channel}` : ""}\n📦 ${productName} x${order.quantity}${order.itemDescription ? `\n📝 ${order.itemDescription}` : ""}\n🏷️ ${stageName}  ·  📅 ${deadline}`,
         },
         accessory: {
           type: "button",
