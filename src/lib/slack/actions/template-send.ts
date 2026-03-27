@@ -1,7 +1,7 @@
 import { getCsToolClient } from "@/lib/cs-tool/client";
 import { getSlackClient } from "@/lib/slack/client";
 import { getSmsGatewayClient } from "@/lib/sms-gateway/client";
-import { normalizePhoneNumber } from "@/lib/utils/phone";
+import { normalizePhoneNumber, formatPhoneNumber } from "@/lib/utils/phone";
 import { prisma } from "@/lib/db/prisma";
 import { getEnv } from "@/lib/config/env";
 import { buildSmsSentMessage, buildSmsFailedMessage } from "@/lib/slack/messages/sms-sent";
@@ -40,12 +40,52 @@ export async function openTemplateSendModal(triggerId: string, orderId: string, 
   if (!template) return;
 
   const contact = order.data.contacts.find((c) => c.type === template.contactType);
-  const phone = contact?.phone ?? order.data.phone ?? "";
+  const rawPhone = contact?.phone ?? order.data.phone ?? "";
+  const normalized = normalizePhoneNumber(rawPhone);
+  const phoneDisplay = normalized ? formatPhoneNumber(normalized) : rawPhone;
+
+  // 최근 대화 내역 조회
+  const historyBlocks: any[] = [];
+  if (normalized) {
+    const recentMessages = await prisma.messageLog.findMany({
+      where: { phoneNumber: normalized },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+    });
+
+    if (recentMessages.length > 0) {
+      const contactLabel = contact?.name ?? phoneDisplay;
+      historyBlocks.push({ type: "divider" });
+      historyBlocks.push({
+        type: "context",
+        elements: [{ type: "mrkdwn", text: `💬 *${contactLabel}* 최근 대화` }],
+      });
+
+      for (const msg of [...recentMessages].reverse()) {
+        const time = msg.createdAt.toLocaleString("ko-KR", {
+          timeZone: "Asia/Seoul",
+          month: "numeric",
+          day: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+          hour12: true,
+        });
+        const isInbound = msg.direction === "inbound";
+        const label = isInbound ? `📩 ${contactLabel}` : "📤 나";
+        const preview = msg.message.length > 50 ? msg.message.substring(0, 50) + "…" : msg.message;
+
+        historyBlocks.push({
+          type: "context",
+          elements: [{ type: "mrkdwn", text: `${label}  _${time}_\n${preview}` }],
+        });
+      }
+    }
+  }
 
   const view = {
     type: "modal" as const,
     callback_id: "template_sms_modal",
-    private_metadata: JSON.stringify({ orderId, phone, contactName: contact?.name }),
+    private_metadata: JSON.stringify({ orderId, phone: normalized ?? rawPhone, contactName: contact?.name }),
     title: { type: "plain_text" as const, text: "문자 발송" },
     submit: { type: "plain_text" as const, text: "발송" },
     close: { type: "plain_text" as const, text: "취소" },
@@ -63,9 +103,10 @@ export async function openTemplateSendModal(triggerId: string, orderId: string, 
         element: {
           type: "plain_text_input",
           action_id: "phone_input",
-          initial_value: phone,
+          initial_value: phoneDisplay,
         },
       },
+      ...historyBlocks,
       {
         type: "input",
         block_id: "message_block",
