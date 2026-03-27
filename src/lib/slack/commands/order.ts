@@ -158,12 +158,15 @@ export async function handleOrderCommand(text: string, page: number = 1) {
       const channel = order.orderId ?? "-";
       const productName = order.productNames ?? order.itemDescription ?? "-";
       const deadline = order.stageDeadline ?? order.dueDate ?? "-";
+      const stageName = order.currentStageName ?? "-";
+      const status = order.status === "completed" ? "✅" : order.status === "cancelled" ? "❌" : "🔵";
 
+      blocks.push({ type: "divider" });
       blocks.push({
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `📦 *${order.customerName}* - ${channel} / ${productName} x${order.quantity}\n   주문내용: ${order.itemDescription ?? "-"}\n   📅 마감: ${deadline}`,
+          text: `${status} *${order.customerName}*  ·  ${channel}\n📦 ${productName} x${order.quantity}\n📝 ${order.itemDescription ?? "-"}\n🏷️ ${stageName}  ·  📅 ${deadline}`,
         },
         accessory: {
           type: "button",
