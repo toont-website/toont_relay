@@ -92,30 +92,14 @@ export function buildOrderDetailMessage(order: Order) {
     }
   }
 
-  // 메시지 템플릿 — 템플릿별 개별 블럭 (3000자 제한 대응)
-  if (order.currentStageTemplates.length > 0) {
-    blocks.push({ type: "divider" });
-    blocks.push({
-      type: "section",
-      text: { type: "mrkdwn", text: "*━━ 메시지 템플릿 ━━*" },
-    });
-    for (const t of order.currentStageTemplates) {
-      const text = `📨 ${t.contactTypeName} → ${t.label}\n> ${t.text}`;
-      blocks.push({
-        type: "section",
-        text: { type: "mrkdwn", text: text.slice(0, 3000) },
-      });
-    }
-  }
-
-  // 액션 버튼
-  const actions: any[] = [];
+  // 액션 버튼 — 연락처 배정 + 체크리스트
+  const topActions: any[] = [];
 
   const hasUnassigned = order.requiredContactTypes.some(
     (rt) => !order.contacts.find((c) => c.type === rt.slug)
   );
   if (hasUnassigned) {
-    actions.push({
+    topActions.push({
       type: "button",
       text: { type: "plain_text", text: "연락처 배정" },
       action_id: "assign_order_contact",
@@ -124,7 +108,7 @@ export function buildOrderDetailMessage(order: Order) {
   }
 
   if (order.checklistStatus.some((cs) => !cs.complete)) {
-    actions.push({
+    topActions.push({
       type: "button",
       text: { type: "plain_text", text: "체크리스트 작성" },
       action_id: "open_checklist",
@@ -132,26 +116,44 @@ export function buildOrderDetailMessage(order: Order) {
     });
   }
 
-  if (order.currentStageTemplates.length > 0) {
-    actions.push(
-      {
-        type: "button",
-        text: { type: "plain_text", text: "📋 복사" },
-        action_id: "copy_template",
-        value: order.id,
-      },
-      {
-        type: "button",
-        text: { type: "plain_text", text: "📨 보내기" },
-        action_id: "send_template_sms",
-        value: order.id,
-        style: "primary",
-      },
-    );
+  if (topActions.length > 0) {
+    blocks.push({ type: "actions", elements: topActions });
   }
 
-  if (actions.length > 0) {
-    blocks.push({ type: "actions", elements: actions });
+  // 메시지 템플릿 — 템플릿별 복사/보내기 버튼
+  if (order.currentStageTemplates.length > 0) {
+    blocks.push({ type: "divider" });
+    blocks.push({
+      type: "section",
+      text: { type: "mrkdwn", text: "*━━ 메시지 템플릿 ━━*" },
+    });
+    for (let i = 0; i < order.currentStageTemplates.length; i++) {
+      const t = order.currentStageTemplates[i];
+      const text = `📨 ${t.contactTypeName} → ${t.label}\n> ${t.text}`;
+      blocks.push({
+        type: "section",
+        text: { type: "mrkdwn", text: text.slice(0, 3000) },
+      });
+      const val = JSON.stringify({ orderId: order.id, templateIndex: i });
+      blocks.push({
+        type: "actions",
+        elements: [
+          {
+            type: "button",
+            text: { type: "plain_text", text: "📋 복사" },
+            action_id: "copy_template",
+            value: val,
+          },
+          {
+            type: "button",
+            text: { type: "plain_text", text: "📨 보내기" },
+            action_id: "send_template_sms",
+            value: val,
+            style: "primary",
+          },
+        ],
+      });
+    }
   }
 
   // 메모
@@ -252,29 +254,14 @@ function buildOrderDetailModalBlocks(order: Order): any[] {
     }
   }
 
-  if (order.currentStageTemplates.length > 0) {
-    blocks.push({ type: "divider" });
-    blocks.push({
-      type: "section",
-      text: { type: "mrkdwn", text: "*메시지 템플릿*" },
-    });
-    for (const t of order.currentStageTemplates) {
-      const text = `${t.contactTypeName} > ${t.label}\n> ${t.text}`;
-      blocks.push({
-        type: "section",
-        text: { type: "mrkdwn", text: text.slice(0, 3000) },
-      });
-    }
-  }
-
-  // 액션 버튼 — 모달에서는 copy_template 제외 (response_url 없음)
-  const actions: any[] = [];
+  // 액션 버튼 — 연락처 배정 + 체크리스트
+  const topActions: any[] = [];
 
   const hasUnassigned = order.requiredContactTypes.some(
     (rt) => !order.contacts.find((c) => c.type === rt.slug),
   );
   if (hasUnassigned) {
-    actions.push({
+    topActions.push({
       type: "button",
       text: { type: "plain_text", text: "연락처 배정" },
       action_id: "assign_order_contact",
@@ -283,7 +270,7 @@ function buildOrderDetailModalBlocks(order: Order): any[] {
   }
 
   if (order.checklistStatus.some((cs) => !cs.complete)) {
-    actions.push({
+    topActions.push({
       type: "button",
       text: { type: "plain_text", text: "체크리스트 작성" },
       action_id: "open_checklist",
@@ -291,18 +278,33 @@ function buildOrderDetailModalBlocks(order: Order): any[] {
     });
   }
 
-  if (order.currentStageTemplates.length > 0) {
-    actions.push({
-      type: "button",
-      text: { type: "plain_text", text: "보내기" },
-      action_id: "send_template_sms",
-      value: order.id,
-      style: "primary",
-    });
+  if (topActions.length > 0) {
+    blocks.push({ type: "actions", elements: topActions });
   }
 
-  if (actions.length > 0) {
-    blocks.push({ type: "actions", elements: actions });
+  // 메시지 템플릿 — 템플릿별 보내기 버튼 (모달에서는 복사 불가)
+  if (order.currentStageTemplates.length > 0) {
+    blocks.push({ type: "divider" });
+    blocks.push({
+      type: "section",
+      text: { type: "mrkdwn", text: "*메시지 템플릿*" },
+    });
+    for (let i = 0; i < order.currentStageTemplates.length; i++) {
+      const t = order.currentStageTemplates[i];
+      const text = `${t.contactTypeName} > ${t.label}\n> ${t.text}`;
+      const val = JSON.stringify({ orderId: order.id, templateIndex: i });
+      blocks.push({
+        type: "section",
+        text: { type: "mrkdwn", text: text.slice(0, 3000) },
+        accessory: {
+          type: "button",
+          text: { type: "plain_text", text: "보내기" },
+          action_id: `send_template_sms`,
+          value: val,
+          style: "primary",
+        },
+      });
+    }
   }
 
   if (order.notes) {

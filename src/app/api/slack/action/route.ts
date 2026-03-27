@@ -229,14 +229,21 @@ export async function POST(request: NextRequest) {
       return new NextResponse(null, { status: 200 });
     }
     if (actionId === "copy_template") {
-      const orderId = payload.actions[0].value;
+      const rawValue = payload.actions[0].value;
       const responseUrl = payload.response_url;
       if (responseUrl) {
         after(async () => {
           try {
-            await handleCopyTemplate(orderId, responseUrl);
+            let orderId = rawValue;
+            let templateIndex: number | undefined;
+            try {
+              const parsed = JSON.parse(rawValue);
+              orderId = parsed.orderId;
+              templateIndex = parsed.templateIndex;
+            } catch { /* 하위호환: 순수 orderId 문자열 */ }
+            await handleCopyTemplate(orderId, responseUrl, templateIndex);
           } catch (error) {
-            logger.error({ error, orderId }, "템플릿 복사 실패");
+            logger.error({ error }, "템플릿 복사 실패");
           }
         });
       }
@@ -244,9 +251,16 @@ export async function POST(request: NextRequest) {
     }
     if (actionId === "send_template_sms") {
       const triggerId = payload.trigger_id;
-      const orderId = payload.actions[0].value;
+      const rawValue = payload.actions[0].value;
       try {
-        await openTemplateSendModal(triggerId, orderId);
+        let orderId = rawValue;
+        let templateIndex: number | undefined;
+        try {
+          const parsed = JSON.parse(rawValue);
+          orderId = parsed.orderId;
+          templateIndex = parsed.templateIndex;
+        } catch { /* 하위호환: 순수 orderId 문자열 */ }
+        await openTemplateSendModal(triggerId, orderId, templateIndex);
       } catch (error) {
         logger.error({ error, actionId }, "모달 오픈 실패");
       }

@@ -7,8 +7,8 @@ import { getEnv } from "@/lib/config/env";
 import { buildSmsSentMessage, buildSmsFailedMessage } from "@/lib/slack/messages/sms-sent";
 import { logger } from "@/lib/logger";
 
-// 📋 복사 버튼 → response_url로 텍스트 전달
-export async function handleCopyTemplate(orderId: string, responseUrl: string) {
+// 📋 복사 버튼 → response_url로 특정 템플릿 텍스트 전달
+export async function handleCopyTemplate(orderId: string, responseUrl: string, templateIndex?: number) {
   const { postToResponseUrl } = await import("@/lib/slack/deferred-response");
   const client = getCsToolClient();
   const order = await client.getOrder(orderId);
@@ -17,25 +17,26 @@ export async function handleCopyTemplate(orderId: string, responseUrl: string) {
   const templates = order.data.currentStageTemplates;
   if (templates.length === 0) return;
 
-  const text = templates
-    .map((t) => `*[${t.contactTypeName} — ${t.label}]*\n${t.text}`)
-    .join("\n\n");
+  const idx = templateIndex ?? 0;
+  const template = templates[idx];
+  if (!template) return;
 
   await postToResponseUrl(responseUrl, {
     response_type: "ephemeral",
     replace_original: false,
-    text,
+    text: `*[${template.contactTypeName} — ${template.label}]*\n${template.text}`,
   });
 }
 
-// 📨 보내기 버튼 → SMS 발송 모달 (템플릿 미리 채움)
-export async function openTemplateSendModal(triggerId: string, orderId: string) {
+// 📨 보내기 버튼 → SMS 발송 모달 (특정 템플릿 미리 채움)
+export async function openTemplateSendModal(triggerId: string, orderId: string, templateIndex?: number) {
   const client = getCsToolClient();
   const slackClient = getSlackClient();
   const order = await client.getOrder(orderId);
   if (!order.data) return;
 
-  const template = order.data.currentStageTemplates[0];
+  const idx = templateIndex ?? 0;
+  const template = order.data.currentStageTemplates[idx];
   if (!template) return;
 
   const contact = order.data.contacts.find((c) => c.type === template.contactType);
