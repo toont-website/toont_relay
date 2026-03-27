@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>TOONT Slack Bot 명령어 가이드</title>
+<style>
+  body { font-family: -apple-system, 'Pretendard', sans-serif; max-width: 960px; margin: 40px auto; padding: 0 20px; color: #1a1a1a; background: #fafafa; }
+  h1 { font-size: 24px; margin-bottom: 8px; }
+  h2 { font-size: 18px; margin-top: 36px; margin-bottom: 12px; border-bottom: 2px solid #e0e0e0; padding-bottom: 6px; }
+  .subtitle { color: #666; font-size: 14px; margin-bottom: 24px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 14px; }
+  th { background: #333; color: #fff; text-align: left; padding: 10px 12px; font-weight: 600; }
+  td { padding: 8px 12px; border-bottom: 1px solid #e0e0e0; vertical-align: top; }
+  tr:hover { background: #f5f5f5; }
+  .freq-high { background: #e8f5e9; }
+  .freq-high:hover { background: #c8e6c9; }
+  .freq-mid { background: #fff8e1; }
+  .freq-mid:hover { background: #ffecb3; }
+  .cmd { font-family: 'SF Mono', monospace; font-weight: 600; color: #1565c0; white-space: nowrap; }
+  .usage { font-family: 'SF Mono', monospace; font-size: 13px; color: #333; }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+  .tag-modal { background: #e3f2fd; color: #1565c0; }
+  .tag-text { background: #f3e5f5; color: #7b1fa2; }
+  .tag-list { background: #e8f5e9; color: #2e7d32; }
+  .legend { display: flex; gap: 16px; margin-bottom: 16px; font-size: 13px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-color { width: 16px; height: 16px; border-radius: 3px; }
+  .note { font-size: 12px; color: #888; }
+  .btn { display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; border: 1px solid #ccc; background: #fff; }
+  .btn-primary { background: #2e7d32; color: #fff; border-color: #2e7d32; }
+  .btn-danger { background: #c62828; color: #fff; border-color: #c62828; }
+  .channel { font-family: 'SF Mono', monospace; color: #e65100; }
+</style>
+</head>
+<body>
+
+<h1>TOONT Slack Bot 명령어 가이드</h1>
+<p class="subtitle">슬랙에서 사용 가능한 모든 명령어와 기능 안내 | 최종 업데이트: 2026-03-27</p>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-color" style="background:#e8f5e9"></div> 자주 사용</div>
+  <div class="legend-item"><div class="legend-color" style="background:#fff8e1"></div> 가끔 사용</div>
+  <div class="legend-item"><div class="legend-color" style="background:#fff"></div> 관리용</div>
+</div>
+
+<h2>1. 주문 관리</h2>
+<table>
+  <tr><th>명령어</th><th>설명</th><th>결과</th><th>타입</th></tr>
+  <tr class="freq-high"><td class="usage">/order</td><td>최근 주문 목록 (5건씩 페이지네이션)</td><td>주문 리스트 + [상세] [이전/다음]</td><td><span class="tag tag-list">목록</span></td></tr>
+  <tr class="freq-high"><td class="usage">/order [이름]</td><td>고객명으로 주문 검색</td><td>예: /order 강동현</td><td><span class="tag tag-list">검색</span></td></tr>
+  <tr class="freq-mid"><td class="usage">/order [상태]</td><td>상태별 필터 (대기/진행중/완료/취소)</td><td>예: /order 진행중</td><td><span class="tag tag-list">검색</span></td></tr>
+  <tr class="freq-high"><td class="usage">/order 추가</td><td>주문 등록 모달</td><td>주문자/상품/수량/배송지 입력 → 등록</td><td><span class="tag tag-modal">모달</span></td></tr>
+  <tr><td colspan="4" class="note">/order-add 도 동일하게 동작</td></tr>
+</table>
+
+<h2>2. 문자 (SMS)</h2>
+<table>
+  <tr><th>명령어</th><th>설명</th><th>결과</th><th>타입</th></tr>
+  <tr class="freq-high"><td class="usage">/sms</td><td>문자 발송 모달</td><td>받는 사람 검색 → 대화 내역 → 메시지 입력 → 발송</td><td><span class="tag tag-modal">모달</span></td></tr>
+  <tr class="freq-mid"><td class="usage">/sms [번호] [메시지]</td><td>문자 바로 발송</td><td>예: /sms 010-1234-5678 내일 배송 예정입니다</td><td><span class="tag tag-text">바로발송</span></td></tr>
+  <tr class="freq-mid"><td class="usage">/sms [이름] [메시지]</td><td>이름으로 발송</td><td>예: /sms 강동현 내일 배송 예정입니다</td><td><span class="tag tag-text">바로발송</span></td></tr>
+  <tr><td colspan="4" class="note">/문자 도 동일하게 동작</td></tr>
+</table>
+
+<h2>3. 오퍼레이션 (작업 현황)</h2>
+<table>
+  <tr><th>명령어</th><th>설명</th><th>결과</th><th>타입</th></tr>
+  <tr class="freq-high"><td class="usage">/operation</td><td>칸반 보드 (전체 현황)</td><td>미배정/접수/제작/배송중 단계별 주문 + [상세] 버튼</td><td><span class="tag tag-list">칸반</span></td></tr>
+  <tr class="freq-mid"><td class="usage">/operation [단계명]</td><td>특정 단계 상세</td><td>예: /operation 접수 → 접수 주문 + 버튼들</td><td><span class="tag tag-list">상세</span></td></tr>
+</table>
+
+<h2>4. 연락처</h2>
+<table>
+  <tr><th>명령어</th><th>설명</th><th>결과</th><th>타입</th></tr>
+  <tr class="freq-high"><td class="usage">/contact</td><td>전체 연락처 목록 (타입별 그룹핑)</td><td>이름, 연락처, 주소, 메모 표시</td><td><span class="tag tag-list">목록</span></td></tr>
+  <tr class="freq-high"><td class="usage">/contact [이름 또는 번호]</td><td>연락처 검색</td><td>예: /contact 강동현 또는 010-9533</td><td><span class="tag tag-list">검색</span></td></tr>
+  <tr class="freq-mid"><td class="usage">/contact 추가</td><td>연락처 등록 모달</td><td>이름, 분류, 전화번호, 주소, 메모 입력</td><td><span class="tag tag-modal">모달</span></td></tr>
+  <tr><td class="usage">/contact 수정 [이름]</td><td>연락처 수정</td><td>[수정] 버튼 → 수정 모달</td><td><span class="tag tag-modal">모달</span></td></tr>
+  <tr><td class="usage">/contact 삭제 [이름]</td><td>연락처 삭제</td><td>정확한 이름 필요, 여러 명이면 안내</td><td><span class="tag tag-text">텍스트</span></td></tr>
+</table>
+
+<h2>5. 재고</h2>
+<table>
+  <tr><th>명령어</th><th>설명</th><th>결과</th><th>타입</th></tr>
+  <tr class="freq-high"><td class="usage">/stock</td><td>전체 재고 현황</td><td>품목별 수량, 부족 여부</td><td><span class="tag tag-list">목록</span></td></tr>
+  <tr class="freq-mid"><td class="usage">/stock 부족</td><td>부족 재고만 표시</td><td>최소 기준 이하 항목만</td><td><span class="tag tag-list">목록</span></td></tr>
+  <tr><td class="usage">/stock [SKU 또는 이름]</td><td>특정 품목 상세</td><td>예: /stock CANVAS-300</td><td><span class="tag tag-list">상세</span></td></tr>
+  <tr class="freq-mid"><td class="usage">/stock-in</td><td>입고 처리 모달</td><td>품목, 수량, 사유 입력</td><td><span class="tag tag-modal">모달</span></td></tr>
+  <tr class="freq-mid"><td class="usage">/stock-out</td><td>출고 처리 모달</td><td>품목, 수량, 사유 입력</td><td><span class="tag tag-modal">모달</span></td></tr>
+</table>
+
+<h2>6. 대시보드 / 프로필</h2>
+<table>
+  <tr><th>명령어</th><th>설명</th><th>결과</th><th>타입</th></tr>
+  <tr class="freq-mid"><td class="usage">/dashboard</td><td>운영 현황 대시보드</td><td>재고 현황 + 진행중 주문 요약</td><td><span class="tag tag-list">요약</span></td></tr>
+  <tr><td class="usage">/profile</td><td>프로필 목록</td><td>이름, 설명, 상품, 필수 연락처 + [수정]</td><td><span class="tag tag-list">목록</span></td></tr>
+  <tr><td class="usage">/profile [이름]</td><td>프로필 검색</td><td>예: /profile 표준</td><td><span class="tag tag-list">검색</span></td></tr>
+  <tr><td class="usage">/profile 수정 [이름]</td><td>프로필 수정 (이름/설명만)</td><td>[수정] 버튼 → 수정 모달</td><td><span class="tag tag-modal">모달</span></td></tr>
+</table>
+
+<h2>7. 연락처 타입 (관리용)</h2>
+<table>
+  <tr><th>명령어</th><th>설명</th><th>결과</th><th>타입</th></tr>
+  <tr><td class="usage">/contact-type</td><td>타입 목록</td><td>고객, 화물/배차 등 + 기본 여부</td><td><span class="tag tag-list">목록</span></td></tr>
+  <tr><td class="usage">/contact-type 추가</td><td>타입 추가 모달</td><td>이름, slug 입력</td><td><span class="tag tag-modal">모달</span></td></tr>
+  <tr><td class="usage">/contact-type 추가 [이름] [slug]</td><td>타입 인라인 추가</td><td>예: /contact-type 추가 원단업체 fabric</td><td><span class="tag tag-text">텍스트</span></td></tr>
+  <tr><td class="usage">/contact-type 삭제 [이름]</td><td>타입 삭제</td><td>기본 타입은 삭제 불가</td><td><span class="tag tag-text">텍스트</span></td></tr>
+</table>
+
+<h2>8. 주문 상세 모달 버튼</h2>
+<p class="note">주문 목록에서 [상세] 클릭 시 열리는 모달 안의 버튼들</p>
+<table>
+  <tr><th>버튼</th><th>설명</th><th>조건</th></tr>
+  <tr class="freq-high"><td><span class="btn btn-primary">접수 시작</span></td><td>미배정 주문을 접수 단계로 이동</td><td>미배정 상태일 때만 표시</td></tr>
+  <tr class="freq-mid"><td><span class="btn">연락처 배정</span></td><td>미배정 연락처 타입별 검색 → 배정</td><td>미배정 연락처가 있을 때</td></tr>
+  <tr class="freq-high"><td><span class="btn">체크리스트 작성</span></td><td>현재 단계 체크리스트 체크/입력</td><td>미완료 체크리스트가 있을 때</td></tr>
+  <tr class="freq-high"><td><span class="btn btn-primary">보내기</span></td><td>템플릿별 SMS 발송 (대화 내역 표시)</td><td>템플릿이 있을 때, 템플릿별 개별 버튼</td></tr>
+  <tr><td><span class="btn btn-danger">삭제</span></td><td>주문 삭제 (확인 다이얼로그)</td><td>항상 표시</td></tr>
+</table>
+
+<h2>9. 오퍼레이션 단계 상세 버튼</h2>
+<p class="note">/operation에서 [단계 상세] 클릭 시 나오는 주문별 버튼들</p>
+<table>
+  <tr><th>버튼</th><th>설명</th></tr>
+  <tr class="freq-high"><td><span class="btn">주문 상세</span></td><td>주문 상세 모달 열기</td></tr>
+  <tr class="freq-high"><td><span class="btn">체크리스트</span></td><td>체크리스트 작성 모달</td></tr>
+  <tr class="freq-high"><td><span class="btn btn-primary">다음 단계로</span></td><td>다음 단계로 이동 (마감일 선택 가능, 체크리스트 미완료 시 경고)</td></tr>
+  <tr class="freq-high"><td><span class="btn btn-primary">완료하기</span></td><td>마지막 단계에서 주문 완료 처리</td></tr>
+  <tr class="freq-high"><td><span class="btn btn-primary">접수 시작</span></td><td>미배정 상세에서 접수 단계로 이동</td></tr>
+</table>
+
+<h2>10. 자동 알림 (웹훅)</h2>
+<p class="note">CS Tool에서 변경 시 자동으로 슬랙 채널에 알림이 옵니다</p>
+<table>
+  <tr><th>채널</th><th>이벤트</th><th>알림 내용</th></tr>
+  <tr class="freq-high"><td class="channel">#주문</td><td>새 주문 등록</td><td>주문자 / 상품 / 단계 / 주소 / 납기</td></tr>
+  <tr><td class="channel">#주문</td><td>주문 삭제</td><td>주문자 / 상품</td></tr>
+  <tr class="freq-high"><td class="channel">#오퍼레이션</td><td>단계 이동</td><td>접수 → 제작 등</td></tr>
+  <tr class="freq-mid"><td class="channel">#오퍼레이션</td><td>마감일 변경</td><td>이전 마감 → 새 마감 (구캘 연동)</td></tr>
+  <tr class="freq-mid"><td class="channel">#오퍼레이션</td><td>상태 변경</td><td>진행중 → 완료 등</td></tr>
+  <tr class="freq-mid"><td class="channel">#재고</td><td>입출고</td><td>품목 / 수량 / 사유</td></tr>
+  <tr><td class="channel">#재고</td><td>재고 부족</td><td>품목 / 현재수량 / 기준수량</td></tr>
+  <tr class="freq-high"><td class="channel">#cs-sms</td><td>SMS 발신</td><td>받는 사람 / 내용 / 발신자</td></tr>
+  <tr class="freq-high"><td class="channel">#cs-sms</td><td>SMS 수신</td><td>보낸 사람 / 내용 + [답장] [연락처 등록] 버튼</td></tr>
+</table>
+
+</body>
+</html>
