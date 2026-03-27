@@ -23,7 +23,7 @@ export async function openOrderContactModal(triggerId: string, orderId: string) 
       type: "external_select",
       action_id: `contact_select_${rt.slug}`,
       placeholder: { type: "plain_text", text: `${rt.name} 검색...` },
-      min_query_length: 1,
+      min_query_length: 0,
     },
   }));
 
