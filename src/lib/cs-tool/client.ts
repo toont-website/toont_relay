@@ -17,6 +17,7 @@ import type {
   CreateContactTypeParams,
   OrderContact,
   Profile,
+  ProfileMatchResponse,
   UpdateProfileParams,
   Stage,
   UpdateStageParams,
@@ -183,6 +184,16 @@ class CsToolClient {
 
   async updateProfile(id: string, params: UpdateProfileParams): Promise<CsToolResponse<Profile>> {
     return this.request<Profile>("PATCH", `/profiles/${id}`, params);
+  }
+
+  // 프로필 매칭
+  async getProfilesBySkus(skus: string[]): Promise<CsToolResponse<ProfileMatchResponse>> {
+    return this.request<ProfileMatchResponse>(
+      "GET",
+      "/profiles/match",
+      undefined,
+      { skus: skus.join(",") }
+    );
   }
 
   // 단계

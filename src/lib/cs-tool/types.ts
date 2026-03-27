@@ -52,6 +52,10 @@ export interface CreateOrderParams {
   channel?: string;
   notes?: string;
   profileId?: string;
+  customerContactId?: string;
+  freightContactId?: string;
+  shipDate?: string;
+  progress?: string;
 }
 
 export interface CreateOrderResponse {
@@ -247,6 +251,13 @@ export interface StageTemplate {
   contactTypeName: string;
   label: string;
   text: string;
+}
+
+// 프로필 매칭
+export interface ProfileMatchResponse {
+  profiles: Profile[];
+  skus: string[];
+  matchCount: number;
 }
 
 // 웹훅 이벤트
