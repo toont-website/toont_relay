@@ -81,6 +81,31 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    if (event.event === "order.deleted") {
+      const order = event.data.order ?? event.data;
+      const phone = order.phone ? displayPhoneNumber(order.phone) : "-";
+      const product = order.productNames ?? order.itemDescription ?? "-";
+
+      await slackClient.chat.postMessage({
+        channel: env.SLACK_CHANNEL_ORDER,
+        text: `🗑️ 주문 삭제: ${order.customerName} — ${product}`,
+        attachments: [
+          {
+            color: "#FF3B30",
+            blocks: [
+              {
+                type: "section",
+                text: {
+                  type: "mrkdwn",
+                  text: `🗑️ *주문이 삭제됐어요*\n\n*주문자:* ${order.customerName} (${phone})\n*상품:* ${product}`,
+                },
+              },
+            ],
+          },
+        ],
+      });
+    }
+
     // 단계 이동 (접수→제작 등)
     if (event.event === "order.stage_changed") {
       const order = event.data.order ?? event.data;
