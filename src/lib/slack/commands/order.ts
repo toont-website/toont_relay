@@ -1,7 +1,6 @@
 import { getCsToolClient } from "@/lib/cs-tool/client";
 import { getSlackClient } from "@/lib/slack/client";
-import { displayPhoneNumber, normalizePhoneNumber } from "@/lib/utils/phone";
-import { buildOrderDetailMessage } from "@/lib/slack/messages/order-detail";
+import { normalizePhoneNumber } from "@/lib/utils/phone";
 import { logger } from "@/lib/logger";
 
 /**
@@ -10,28 +9,11 @@ import { logger } from "@/lib/logger";
  * - /order 홍길동 → 고객명 검색
  * - /order 접수 → 상태 필터
  */
-const statusDisplayMap: Record<string, string> = {
-  pending: "대기",
-  in_progress: "진행 중",
-  completed: "완료",
-  cancelled: "취소",
-};
-
 export async function handleOrderCommand(text: string) {
   const trimmed = text.trim();
   const client = getCsToolClient();
 
   try {
-    // UUID 형태면 단일 주문 상세 조회
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed);
-    if (isUuid) {
-      const result = await client.getOrder(trimmed);
-      if (!result.data) {
-        return { text: `주문을 찾을 수 없어요: ${trimmed}` };
-      }
-      return buildOrderDetailMessage(result.data);
-    }
-
     const filters: Record<string, string> = { limit: "10" };
     if (trimmed) {
       const statusMap: Record<string, string> = {
@@ -63,17 +45,16 @@ export async function handleOrderCommand(text: string) {
     ];
 
     for (const order of orders) {
-      const phone = order.phone ? displayPhoneNumber(order.phone) : "-";
-      const stage = order.currentStageName ?? statusDisplayMap[order.status] ?? order.status ?? "-";
-      const date = new Date(order.createdAt).toLocaleDateString("ko-KR");
-      const due = order.dueDate ? order.dueDate : "";
+      const channel = order.orderId ?? "-";
+      const productName = order.productNames ?? order.itemDescription ?? "-";
+      const deadline = order.stageDeadline ?? order.dueDate ?? "-";
 
       blocks.push(
         {
           type: "section",
           text: {
             type: "mrkdwn",
-            text: `*${order.customerName}*  ·  ${phone}  <https://cs.toont.co.kr/?view=operations&orderId=${order.id}|관리하기>\n>${order.itemDescription ?? "-"} x${order.quantity}`,
+            text: `📦 *${order.customerName}* - ${channel} / ${productName} x${order.quantity}\n   주문내용: ${order.itemDescription ?? "-"}\n   📅 마감: ${deadline}`,
           },
           accessory: {
             type: "button",
@@ -82,19 +63,7 @@ export async function handleOrderCommand(text: string) {
             value: order.id,
           },
         },
-        {
-          type: "context",
-          elements: [
-            { type: "mrkdwn", text: `📌 ${stage}${due ? `  ·  📅 납기 ${due}` : ""}  ·  등록 ${date}` },
-          ],
-        },
-        { type: "divider" },
       );
-    }
-
-    // 마지막 divider 제거
-    if (blocks.length > 1 && blocks[blocks.length - 1].type === "divider") {
-      blocks.pop();
     }
 
     blocks.push({

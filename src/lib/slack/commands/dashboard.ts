@@ -1,7 +1,5 @@
 import { getCsToolClient } from "@/lib/cs-tool/client";
 import { logger } from "@/lib/logger";
-import { displayPhoneNumber } from "@/lib/utils/phone";
-
 /**
  * /dashboard — 운영 현황 대시보드
  * 재고 + 진행중 주문을 한눈에 보여줌
@@ -70,23 +68,16 @@ export async function handleDashboardCommand() {
           text: { type: "mrkdwn", text: `*${stage}* (${stageOrders.length}건)` },
         });
         for (const order of stageOrders) {
-          const due = order.dueDate ? order.dueDate : "";
-          const phone = order.phone ? displayPhoneNumber(order.phone) : "-";
+          const channel = order.orderId ?? "-";
+          const productName = order.productNames ?? order.itemDescription ?? "-";
+          const deadline = order.stageDeadline ?? order.dueDate ?? "-";
           blocks.push({
             type: "section",
             text: {
               type: "mrkdwn",
-              text: `*${order.customerName}*  ·  ${phone}\n>${order.itemDescription ?? "-"} x${order.quantity}`,
+              text: `📦 *${order.customerName}* - ${channel} / ${productName} x${order.quantity}\n   주문내용: ${order.itemDescription ?? "-"}\n   📅 마감: ${deadline}`,
             },
           });
-          if (due) {
-            blocks.push({
-              type: "context",
-              elements: [
-                { type: "mrkdwn", text: `📅 납기 ${due}` },
-              ],
-            });
-          }
         }
       }
     } else {
