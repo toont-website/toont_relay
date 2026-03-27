@@ -150,8 +150,12 @@ export async function handleOrderCommand(text: string, page: number = 1) {
     const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
     const title = trimmed ? `"${trimmed}" 검색 결과` : "최근 주문";
 
+    const from = (page - 1) * PAGE_SIZE + 1;
+    const to = Math.min(page * PAGE_SIZE, total);
+    const rangeLabel = from === to ? `${from}/${total}` : `${from}~${to}/${total}`;
+
     const blocks: any[] = [
-      { type: "header", text: { type: "plain_text", text: `📋 ${title} (${total}건)`.slice(0, 150) } },
+      { type: "header", text: { type: "plain_text", text: `📋 ${title} (${rangeLabel})`.slice(0, 150) } },
     ];
 
     for (const order of orders) {
