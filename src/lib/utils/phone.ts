@@ -14,6 +14,12 @@ export function normalizePhoneNumber(input: string): string | null {
   // 한국 로컬 번호
   if (/^01[0-9]\d{7,8}$/.test(cleaned)) return `+82${cleaned.slice(1)}`;
 
+  // 00 prefix (앞자리 0 중복 — 001012345678 → 01012345678)
+  if (/^00[1-9]/.test(cleaned)) {
+    const stripped = "0" + cleaned.slice(2);
+    if (/^01[0-9]\d{7,8}$/.test(stripped)) return `+82${stripped.slice(1)}`;
+  }
+
   return null;
 }
 

@@ -26,13 +26,13 @@ export function buildOrderDetailMessage(order: Order) {
       type: "section",
       fields: [
         { type: "mrkdwn", text: `*👤 고객:* ${order.customerName} (${phone})` },
-        { type: "mrkdwn", text: `*📦 상품:* ${order.productNames ?? "-"} x${order.quantity}` },
+        { type: "mrkdwn", text: `*📦 상품:* ${order.productNames ?? order.itemDescription ?? "-"} x${order.quantity}` },
       ],
     },
-    {
+    ...(order.itemDescription && order.productNames ? [{
       type: "section",
-      text: { type: "mrkdwn", text: `*📝 주문내용:* ${order.itemDescription ?? "-"}` },
-    },
+      text: { type: "mrkdwn", text: `*📝 주문내용:* ${order.itemDescription}` },
+    }] : []),
     {
       type: "section",
       fields: [
