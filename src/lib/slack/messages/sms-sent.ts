@@ -35,7 +35,7 @@ export function buildSmsSentMessage(params: SmsSentMessageParams) {
   ];
 
   return {
-    text: " ",
+    text: `📤 ${recipientName}에게 문자 발송`,
     attachments: [{ color: "#2196F3", blocks }],
   };
 }
@@ -76,7 +76,7 @@ export function buildSmsFailedMessage(params: SmsFailedMessageParams) {
   ];
 
   return {
-    text: " ",
+    text: `❌ ${recipientName} 문자 발송 실패`,
     attachments: [{ color: "#FF3B30", blocks }],
   };
 }

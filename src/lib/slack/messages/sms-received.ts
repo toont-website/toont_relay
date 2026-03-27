@@ -80,8 +80,11 @@ export function buildSmsReceivedMessage(params: SmsReceivedMessageParams) {
 
   blocks.push({ type: "actions", elements: actions });
 
+  const previewName = senderName ?? formattedPhone;
+  const previewMsg = message.length > 50 ? message.slice(0, 50) + "…" : message;
+
   return {
-    text: " ",
+    text: `📩 ${previewName}: ${previewMsg}`,
     attachments: [{ color, blocks }],
   };
 }

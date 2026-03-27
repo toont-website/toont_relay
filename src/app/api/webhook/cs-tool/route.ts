@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
 
       await slackClient.chat.postMessage({
         channel: env.SLACK_CHANNEL_ORDER,
-        text: " ",
+        text: `📋 새 주문: ${order.customerName} — ${product}`,
         attachments: [
           {
             color: "#36C759",
@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
 
       await slackClient.chat.postMessage({
         channel: env.SLACK_CHANNEL_OPERATION,
-        text: " ",
+        text: `🔄 ${order.customerName}: ${prevStage} → ${currStage}`,
         attachments: [
           {
             color: "#2196F3",
@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
 
       await slackClient.chat.postMessage({
         channel: env.SLACK_CHANNEL_OPERATION,
-        text: " ",
+        text: `📅 ${order.customerName}: 마감 ${prevDeadline} → ${newDeadline}`,
         attachments: [
           {
             color: "#FF9500",
@@ -164,7 +164,7 @@ export async function POST(request: NextRequest) {
 
       await slackClient.chat.postMessage({
         channel: env.SLACK_CHANNEL_OPERATION,
-        text: " ",
+        text: `🔄 ${order.customerName}: ${statusMap[prevStatus] ?? prevStatus} → ${statusMap[currStatus] ?? currStatus}`,
         attachments: [
           {
             color,
@@ -192,7 +192,7 @@ export async function POST(request: NextRequest) {
 
       await slackClient.chat.postMessage({
         channel: env.SLACK_CHANNEL_INVENTORY,
-        text: " ",
+        text: `${icon} ${item.name} ${isInbound ? "+" : "-"}${change.quantity ?? "?"}`,
         attachments: [
           {
             color,
@@ -215,7 +215,7 @@ export async function POST(request: NextRequest) {
 
       await slackClient.chat.postMessage({
         channel: env.SLACK_CHANNEL_INVENTORY,
-        text: " ",
+        text: `⚠️ 재고 부족: ${item.name} (${item.quantity}${item.unit})`,
         attachments: [
           {
             color: "#FF3B30",
