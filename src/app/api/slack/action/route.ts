@@ -316,6 +316,46 @@ export async function POST(request: NextRequest) {
       }
       return new NextResponse(null, { status: 200 });
     }
+    if (actionId === "delete_order") {
+      const orderId = payload.actions[0].value;
+      after(async () => {
+        try {
+          const { getCsToolClient } = await import("@/lib/cs-tool/client");
+          const { getSlackClient } = await import("@/lib/slack/client");
+          const client = getCsToolClient();
+          const slackClient = getSlackClient();
+
+          // 삭제 전 주문 정보 조회
+          const orderResult = await client.getOrder(orderId);
+          const customerName = orderResult.data?.customerName ?? "주문";
+
+          await client.deleteOrder(orderId);
+          logger.info({ orderId, customerName }, "주문 삭제 완료");
+
+          // 삭제 후 모달 업데이트 (view_id로)
+          const viewId = payload.view?.id;
+          if (viewId) {
+            await slackClient.views.update({
+              view_id: viewId,
+              view: {
+                type: "modal",
+                title: { type: "plain_text", text: "삭제 완료" },
+                close: { type: "plain_text", text: "닫기" },
+                blocks: [
+                  {
+                    type: "section",
+                    text: { type: "mrkdwn", text: `*${customerName}* 주문을 삭제했어요.` },
+                  },
+                ],
+              },
+            });
+          }
+        } catch (error) {
+          logger.error({ error, orderId }, "주문 삭제 실패");
+        }
+      });
+      return new NextResponse(null, { status: 200 });
+    }
     if (actionId === "view_order_detail") {
       const triggerId = payload.trigger_id;
       const orderId = payload.actions[0].value;

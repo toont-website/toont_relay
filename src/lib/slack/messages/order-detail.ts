@@ -311,9 +311,22 @@ function buildOrderDetailModalBlocks(order: Order): any[] {
     });
   }
 
-  if (topActions.length > 0) {
-    blocks.push({ type: "actions", elements: topActions });
-  }
+  topActions.push({
+    type: "button",
+    text: { type: "plain_text", text: "삭제" },
+    action_id: "delete_order",
+    value: order.id,
+    style: "danger",
+    confirm: {
+      title: { type: "plain_text", text: "주문 삭제" },
+      text: { type: "mrkdwn", text: `*${order.customerName}* 주문을 삭제하시겠습니까?\n삭제하면 되돌릴 수 없습니다.` },
+      confirm: { type: "plain_text", text: "삭제" },
+      deny: { type: "plain_text", text: "취소" },
+      style: "danger",
+    },
+  });
+
+  blocks.push({ type: "actions", elements: topActions });
 
   // ── 메시지 템플릿 ──
   if (order.currentStageTemplates.length > 0) {

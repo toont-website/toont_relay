@@ -89,6 +89,10 @@ class CsToolClient {
     return this.request<Order>("PATCH", `/orders/${id}`, params);
   }
 
+  async deleteOrder(id: string): Promise<CsToolResponse<void>> {
+    return this.request<void>("DELETE", `/orders/${id}`);
+  }
+
   // 재고
   async getInventory(filters?: {
     category?: string;
