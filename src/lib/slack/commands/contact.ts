@@ -84,6 +84,7 @@ export async function openContactAddModal(triggerId: string, prefillPhone?: stri
       block_id: "phone_block",
       label: { type: "plain_text", text: "전화번호" },
       optional: true,
+      hint: { type: "plain_text", text: "010-xxxx-xxxx 형식으로 입력해주세요" },
       element: {
         type: "plain_text_input",
         action_id: "phone_input",
@@ -370,14 +371,13 @@ async function listContacts() {
 
       for (const c of members) {
         const phone = c.phone ? formatPhoneNumber(c.phone) : "-";
-        const memo = c.memo ?? "";
-        const addr = c.address ? ` | ${c.address}` : "";
+        const lines = [`*${c.name}* [${typeName}]`];
+        lines.push(`📞 ${phone}`);
+        if (c.address) lines.push(`📍 ${c.address}`);
+        if (c.memo) lines.push(`📝 ${c.memo}`);
         blocks.push({
           type: "section",
-          fields: [
-            { type: "mrkdwn", text: `*${c.name}*\n${phone}` },
-            { type: "mrkdwn", text: memo ? `${memo}${addr}` : addr || "_메모 없음_" },
-          ],
+          text: { type: "mrkdwn", text: lines.join("\n") },
         });
       }
     }
