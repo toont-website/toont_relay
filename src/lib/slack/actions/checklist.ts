@@ -115,11 +115,24 @@ export async function handleChecklistSubmit(payload: any) {
     }
   }
 
+  // API 형식: templateVariables.__stage_checklists.{stageId}.{itemId} = { checked } | { value }
+  const checklistData: Record<string, Record<string, unknown>> = {};
+  checklistData[stageId] = {};
+  for (const item of items) {
+    if (item.checked !== undefined) {
+      checklistData[stageId][item.id] = { checked: item.checked };
+    } else if (item.value !== undefined) {
+      checklistData[stageId][item.id] = { value: item.value };
+    }
+  }
+
   const client = getCsToolClient();
   try {
     await client.updateOrder(orderId, {
-      checklistStatus: [{ stageId, items }],
-    });
+      templateVariables: {
+        __stage_checklists: checklistData,
+      },
+    } as any);
     logger.info({ orderId, stageId, itemCount: items.length }, "체크리스트 저장");
     return {
       response_action: "update",

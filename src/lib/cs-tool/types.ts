@@ -30,7 +30,7 @@ export interface Order {
   profileName: string | null;
   stageEnteredAt: string | null;
   stageDeadline: string | null;
-  templateVariables: Record<string, string>;
+  templateVariables: Record<string, unknown>;
   contacts: OrderContact[];
   requiredContactTypes: RequiredContactType[];
   currentStageTemplates: StageTemplate[];
@@ -66,11 +66,7 @@ export interface CreateOrderResponse {
 export interface UpdateOrderParams {
   status?: string;
   notes?: string;
-  templateVariables?: Record<string, string>;
-  checklistStatus?: Array<{
-    stageId: string;
-    items: Array<{ id: string; checked?: boolean; value?: string }>;
-  }>;
+  templateVariables?: Record<string, unknown>;
 }
 
 // 재고
