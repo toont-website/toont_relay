@@ -35,6 +35,8 @@ import {
 import {
   handleMoveNextStage,
   handleStageMoveSubmit,
+  handleCompleteOrder,
+  handleCompleteOrderSubmit,
 } from "@/lib/slack/actions/stage-move";
 import {
   openProfileEditModal,
@@ -92,9 +94,13 @@ export async function POST(request: NextRequest) {
     }
     if (callbackId === "template_sms_confirm") {
       after(async () => {
-        await executeTemplateSms(payload);
+        try {
+          await executeTemplateSms(payload);
+        } catch (error) {
+          logger.error({ error }, "템플릿 SMS 발송 실패");
+        }
       });
-      return new NextResponse(null, { status: 200 });
+      return NextResponse.json({ response_action: "clear" });
     }
     if (callbackId === "checklist_modal") {
       const response = await handleChecklistSubmit(payload);
@@ -103,6 +109,11 @@ export async function POST(request: NextRequest) {
     }
     if (callbackId === "stage_move_modal") {
       const response = await handleStageMoveSubmit(payload);
+      if (response) return NextResponse.json(response);
+      return new NextResponse(null, { status: 200 });
+    }
+    if (callbackId === "complete_order_modal") {
+      const response = await handleCompleteOrderSubmit(payload);
       if (response) return NextResponse.json(response);
       return new NextResponse(null, { status: 200 });
     }
@@ -243,6 +254,16 @@ export async function POST(request: NextRequest) {
       }
       return new NextResponse(null, { status: 200 });
     }
+    if (actionId === "complete_order") {
+      const triggerId = payload.trigger_id;
+      const orderId = payload.actions[0].value;
+      try {
+        await handleCompleteOrder(triggerId, orderId);
+      } catch (error) {
+        logger.error({ error, actionId }, "모달 오픈 실패");
+      }
+      return new NextResponse(null, { status: 200 });
+    }
     if (actionId === "assign_order_contact") {
       const triggerId = payload.trigger_id;
       const orderId = payload.actions[0].value;
@@ -287,7 +308,8 @@ export async function POST(request: NextRequest) {
           if (!board || !responseUrl) return;
           const stageData = board.stages.find((s) => s.id === stageId);
           if (!stageData) return;
-          const message = buildStageDetailMessage(stageData);
+          const maxPos = Math.max(...board.stages.map((s) => s.position));
+          const message = buildStageDetailMessage(stageData, stageData.position === maxPos);
           await postToResponseUrl(responseUrl, { ...message, replace_original: false });
         } catch (error) {
           logger.error({ error, stageId }, "단계 상세 조회 실패");

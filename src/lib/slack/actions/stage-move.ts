@@ -120,6 +120,157 @@ export async function handleMoveNextStage(
   });
 }
 
+export async function handleCompleteOrder(
+  triggerId: string,
+  orderId: string
+) {
+  const client = getCsToolClient();
+  const slackClient = getSlackClient();
+
+  const orderResult = await client.getOrder(orderId);
+  const order = orderResult.data;
+  if (!order) return;
+
+  // 체크리스트 미완료 체크
+  const currentChecklist = order.checklistStatus.find(
+    (cs) => cs.stageId === order.currentStageId
+  );
+  const hasIncomplete = currentChecklist ? !currentChecklist.complete : false;
+
+  if (hasIncomplete) {
+    await slackClient.views.open({
+      trigger_id: triggerId,
+      view: {
+        type: "modal",
+        callback_id: "complete_order_modal",
+        private_metadata: JSON.stringify({ orderId }),
+        title: { type: "plain_text", text: "주문 완료" },
+        submit: { type: "plain_text", text: "완료 처리" },
+        close: { type: "plain_text", text: "취소" },
+        blocks: [
+          {
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: `*${order.customerName}* · ${order.itemDescription ?? "-"}\n\n⚠️ 현재 단계의 체크리스트가 완료되지 않았어요.`,
+            },
+          },
+          {
+            type: "input",
+            block_id: "skip_block",
+            label: { type: "plain_text", text: "체크리스트 건너뛰기" },
+            optional: true,
+            element: {
+              type: "checkboxes",
+              action_id: "skip_checkbox",
+              options: [
+                {
+                  text: {
+                    type: "plain_text",
+                    text: "체크리스트 미완료 상태로 완료 처리",
+                  },
+                  value: "skip",
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+    return;
+  }
+
+  // 체크리스트 완료 상태면 바로 완료 처리
+  try {
+    await client.updateOrder(orderId, { status: "completed" });
+    logger.info({ orderId }, "주문 완료 처리");
+    await slackClient.views.open({
+      trigger_id: triggerId,
+      view: {
+        type: "modal",
+        title: { type: "plain_text", text: "완료" },
+        close: { type: "plain_text", text: "닫기" },
+        blocks: [
+          {
+            type: "section",
+            text: { type: "mrkdwn", text: "✅ 주문을 완료 처리했어요." },
+          },
+        ],
+      },
+    });
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "알 수 없는 에러";
+    logger.error({ error: msg, orderId }, "주문 완료 처리 실패");
+    await slackClient.views.open({
+      trigger_id: triggerId,
+      view: {
+        type: "modal",
+        title: { type: "plain_text", text: "오류" },
+        close: { type: "plain_text", text: "닫기" },
+        blocks: [
+          {
+            type: "section",
+            text: { type: "mrkdwn", text: `주문 완료 처리 실패: ${msg}` },
+          },
+        ],
+      },
+    });
+  }
+}
+
+export async function handleCompleteOrderSubmit(payload: any) {
+  let metadata: any;
+  try {
+    metadata = JSON.parse(payload.view.private_metadata);
+  } catch {
+    logger.error("private_metadata 파싱 실패 (handleCompleteOrderSubmit)");
+    return null;
+  }
+  const { orderId } = metadata;
+  const values = payload.view.state.values;
+
+  const skipChecklist =
+    (values.skip_block?.skip_checkbox?.selected_options?.length ?? 0) > 0;
+
+  if (!skipChecklist) {
+    return {
+      response_action: "errors",
+      errors: {
+        skip_block:
+          "체크리스트를 먼저 완료하거나, 건너뛰기를 선택해주세요.",
+      },
+    };
+  }
+
+  const client = getCsToolClient();
+
+  try {
+    await client.updateOrder(orderId, { status: "completed" });
+    logger.info({ orderId, skipChecklist }, "주문 완료 처리");
+    return {
+      response_action: "update",
+      view: {
+        type: "modal",
+        title: { type: "plain_text", text: "완료" },
+        close: { type: "plain_text", text: "닫기" },
+        blocks: [
+          {
+            type: "section",
+            text: { type: "mrkdwn", text: "✅ 주문을 완료 처리했어요." },
+          },
+        ],
+      },
+    };
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "알 수 없는 에러";
+    logger.error({ error: msg, orderId }, "주문 완료 처리 실패");
+    return {
+      response_action: "errors",
+      errors: { skip_block: `완료 처리 실패: ${msg}` },
+    };
+  }
+}
+
 export async function handleStageMoveSubmit(payload: any) {
   let metadata: any;
   try {

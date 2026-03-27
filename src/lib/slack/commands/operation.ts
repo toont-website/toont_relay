@@ -24,7 +24,10 @@ export async function handleOperationCommand(text: string) {
           return { response_type: "ephemeral", text: "오퍼레이션 조회에 실패했어요." };
         }
         const stageData = board.stages.find((s) => s.id === stage.id);
-        if (stageData) return buildStageDetailMessage(stageData);
+        if (stageData) {
+          const maxPos = Math.max(...board.stages.map((s) => s.position));
+          return buildStageDetailMessage(stageData, stageData.position === maxPos);
+        }
       }
 
       return {

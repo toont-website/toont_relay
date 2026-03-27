@@ -28,14 +28,13 @@ export function buildKanbanMessage(board: OperationBoard) {
   for (const stage of board.stages) {
     const emoji = STAGE_EMOJI[stage.color] ?? "⚪";
     const lines = stage.orders.slice(0, 5).map((o) => {
+      const channel = o.orderId ?? "-";
+      const productName = o.productNames ?? o.itemDescription ?? "-";
       const deadline = o.stageDeadline
-        ? new Date(o.stageDeadline).toLocaleDateString("ko-KR", {
-            month: "2-digit",
-            day: "2-digit",
-          })
-        : "";
+        ? new Date(o.stageDeadline).toLocaleDateString("ko-KR")
+        : "-";
       const warn = isDeadlineApproaching(o.stageDeadline) ? " ⚠️ D-1" : "";
-      return `  • ${o.orderId ?? o.customerName} — ${o.customerName} / ${o.itemDescription ?? "-"} x${o.quantity}${deadline ? ` / ~${deadline}` : ""}${warn}`;
+      return `📦 *${o.customerName}* - ${channel} / ${productName} x${o.quantity}\n   주문내용: ${o.itemDescription ?? "-"}\n   📅 마감: ${deadline}${warn}`;
     });
 
     const more =
@@ -76,7 +75,7 @@ export function buildKanbanMessage(board: OperationBoard) {
   return { response_type: "ephemeral" as const, text: " ", blocks };
 }
 
-export function buildStageDetailMessage(stage: OperationStage) {
+export function buildStageDetailMessage(stage: OperationStage, isLastStage = false) {
   const emoji = STAGE_EMOJI[stage.color] ?? "⚪";
 
   const blocks: any[] = [
@@ -95,6 +94,9 @@ export function buildStageDetailMessage(stage: OperationStage) {
       : "-";
     const warn = isDeadlineApproaching(order.stageDeadline) ? " ⚠️ D-1" : "";
 
+    const channel = order.orderId ?? "-";
+    const productName = order.productNames ?? order.itemDescription ?? "-";
+
     const checklistInfo =
       order.checklistStatus.length > 0
         ? order.checklistStatus
@@ -112,7 +114,7 @@ export function buildStageDetailMessage(stage: OperationStage) {
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `📦 *${order.orderId ?? order.customerName}* — ${order.customerName} / ${order.itemDescription ?? "-"} x${order.quantity}\n   📅 마감: ${deadline}${warn}${checklistInfo ? `\n   체크리스트: ${checklistInfo}` : ""}`,
+          text: `📦 *${order.customerName}* - ${channel} / ${productName} x${order.quantity}\n   주문내용: ${order.itemDescription ?? "-"}\n   📅 마감: ${deadline}${warn}${checklistInfo ? `\n   체크리스트: ${checklistInfo}` : ""}`,
         },
       },
       {
@@ -130,13 +132,21 @@ export function buildStageDetailMessage(stage: OperationStage) {
             action_id: "open_checklist",
             value: order.id,
           },
-          {
-            type: "button",
-            text: { type: "plain_text", text: "다음 단계로" },
-            action_id: "move_next_stage",
-            value: order.id,
-            style: "primary",
-          },
+          ...(isLastStage
+            ? [{
+                type: "button",
+                text: { type: "plain_text", text: "완료하기" },
+                action_id: "complete_order",
+                value: order.id,
+                style: "primary",
+              }]
+            : [{
+                type: "button",
+                text: { type: "plain_text", text: "다음 단계로" },
+                action_id: "move_next_stage",
+                value: order.id,
+                style: "primary",
+              }]),
         ],
       }
     );
