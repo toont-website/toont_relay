@@ -89,19 +89,16 @@ async function openSmsModal(triggerId: string) {
       close: { type: "plain_text", text: "취소" },
       blocks: [
         {
-          type: "section",
-          text: { type: "mrkdwn", text: "📇 *받는 사람을 선택해주세요*\n아래에서 이름이나 번호를 검색할 수 있어요." },
-        },
-        {
-          type: "section",
+          type: "input",
           block_id: "recipient_block",
-          text: { type: "mrkdwn", text: " " },
-          accessory: {
+          label: { type: "plain_text", text: "받는 사람" },
+          element: {
             type: "external_select",
             action_id: "contact_select",
             placeholder: { type: "plain_text", text: "이름 또는 번호 검색..." },
             min_query_length: 1,
           },
+          dispatch_action: true,
         },
         { type: "divider" },
         {
@@ -235,15 +232,16 @@ export async function handleContactSelect(payload: any) {
       close: { type: "plain_text", text: "취소" },
       blocks: [
         {
-          type: "section",
+          type: "input",
           block_id: "recipient_block",
-          text: { type: "mrkdwn", text: `✅ *${displayText}*` },
-          accessory: {
+          label: { type: "plain_text", text: `받는 사람 — ${displayText}` },
+          element: {
             type: "external_select",
             action_id: "contact_select",
             placeholder: { type: "plain_text", text: "변경..." },
             min_query_length: 1,
           },
+          dispatch_action: true,
         },
         ...historyBlocks,
         {
