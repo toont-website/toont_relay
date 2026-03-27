@@ -42,46 +42,50 @@ export async function openTemplateSendModal(triggerId: string, orderId: string, 
   const contact = order.data.contacts.find((c) => c.type === template.contactType);
   const phone = contact?.phone ?? order.data.phone ?? "";
 
-  await slackClient.views.open({
-    trigger_id: triggerId,
-    view: {
-      type: "modal",
-      callback_id: "template_sms_modal",
-      private_metadata: JSON.stringify({ orderId, phone, contactName: contact?.name }),
-      title: { type: "plain_text", text: "문자 발송" },
-      submit: { type: "plain_text", text: "발송" },
-      close: { type: "plain_text", text: "취소" },
-      blocks: [
-        {
-          type: "context",
-          elements: [
-            { type: "mrkdwn", text: `📨 *${template.contactTypeName}* → ${template.label}` },
-          ],
+  const view = {
+    type: "modal" as const,
+    callback_id: "template_sms_modal",
+    private_metadata: JSON.stringify({ orderId, phone, contactName: contact?.name }),
+    title: { type: "plain_text" as const, text: "문자 발송" },
+    submit: { type: "plain_text" as const, text: "발송" },
+    close: { type: "plain_text" as const, text: "취소" },
+    blocks: [
+      {
+        type: "context",
+        elements: [
+          { type: "mrkdwn", text: `📨 *${template.contactTypeName}* → ${template.label}` },
+        ],
+      },
+      {
+        type: "input",
+        block_id: "phone_block",
+        label: { type: "plain_text", text: "수신 번호" },
+        element: {
+          type: "plain_text_input",
+          action_id: "phone_input",
+          initial_value: phone,
         },
-        {
-          type: "input",
-          block_id: "phone_block",
-          label: { type: "plain_text", text: "수신 번호" },
-          element: {
-            type: "plain_text_input",
-            action_id: "phone_input",
-            initial_value: phone,
-          },
+      },
+      {
+        type: "input",
+        block_id: "message_block",
+        label: { type: "plain_text", text: "메시지 (수정 가능)" },
+        element: {
+          type: "plain_text_input",
+          action_id: "message_input",
+          multiline: true,
+          initial_value: template.text,
         },
-        {
-          type: "input",
-          block_id: "message_block",
-          label: { type: "plain_text", text: "메시지 (수정 가능)" },
-          element: {
-            type: "plain_text_input",
-            action_id: "message_input",
-            multiline: true,
-            initial_value: template.text,
-          },
-        },
-      ],
-    },
-  });
+      },
+    ],
+  };
+
+  // 모달 안에서 호출 시 push, 그 외 open
+  try {
+    await slackClient.views.push({ trigger_id: triggerId, view });
+  } catch {
+    await slackClient.views.open({ trigger_id: triggerId, view });
+  }
 }
 
 // 발송 제출 → 컨펌 모달 (push)

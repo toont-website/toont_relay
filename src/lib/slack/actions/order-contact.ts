@@ -27,18 +27,21 @@ export async function openOrderContactModal(triggerId: string, orderId: string) 
     },
   }));
 
-  await slackClient.views.open({
-    trigger_id: triggerId,
-    view: {
-      type: "modal",
-      callback_id: "order_contact_modal",
-      private_metadata: JSON.stringify({ orderId }),
-      title: { type: "plain_text", text: "연락처 배정" },
-      submit: { type: "plain_text", text: "배정" },
-      close: { type: "plain_text", text: "취소" },
-      blocks,
-    },
-  });
+  const view = {
+    type: "modal" as const,
+    callback_id: "order_contact_modal",
+    private_metadata: JSON.stringify({ orderId }),
+    title: { type: "plain_text" as const, text: "연락처 배정" },
+    submit: { type: "plain_text" as const, text: "배정" },
+    close: { type: "plain_text" as const, text: "취소" },
+    blocks,
+  };
+
+  try {
+    await slackClient.views.push({ trigger_id: triggerId, view });
+  } catch {
+    await slackClient.views.open({ trigger_id: triggerId, view });
+  }
 }
 
 export async function handleOrderContactSubmit(payload: any) {

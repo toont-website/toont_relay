@@ -1,5 +1,5 @@
 import { getCsToolClient } from "@/lib/cs-tool/client";
-import { getSlackClient } from "@/lib/slack/client";
+import { getSlackClient, openOrPushView } from "@/lib/slack/client";
 import { logger } from "@/lib/logger";
 
 export async function handleMoveNextStage(
@@ -26,7 +26,7 @@ export async function handleMoveNextStage(
       : null;
 
   if (!nextStage) {
-    await slackClient.views.open({
+    await openOrPushView(slackClient, {
       trigger_id: triggerId,
       view: {
         type: "modal",
@@ -101,7 +101,7 @@ export async function handleMoveNextStage(
     },
   });
 
-  await slackClient.views.open({
+  await openOrPushView(slackClient, {
     trigger_id: triggerId,
     view: {
       type: "modal",
@@ -138,7 +138,7 @@ export async function handleCompleteOrder(
   const hasIncomplete = currentChecklist ? !currentChecklist.complete : false;
 
   if (hasIncomplete) {
-    await slackClient.views.open({
+    await openOrPushView(slackClient, {
       trigger_id: triggerId,
       view: {
         type: "modal",
@@ -184,7 +184,7 @@ export async function handleCompleteOrder(
   try {
     await client.updateOrder(orderId, { status: "completed" });
     logger.info({ orderId }, "주문 완료 처리");
-    await slackClient.views.open({
+    await openOrPushView(slackClient, {
       trigger_id: triggerId,
       view: {
         type: "modal",
@@ -201,7 +201,7 @@ export async function handleCompleteOrder(
   } catch (error) {
     const msg = error instanceof Error ? error.message : "알 수 없는 에러";
     logger.error({ error: msg, orderId }, "주문 완료 처리 실패");
-    await slackClient.views.open({
+    await openOrPushView(slackClient, {
       trigger_id: triggerId,
       view: {
         type: "modal",

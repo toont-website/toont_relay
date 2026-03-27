@@ -60,32 +60,35 @@ export async function openChecklistModal(triggerId: string, orderId: string) {
     };
   });
 
-  await slackClient.views.open({
-    trigger_id: triggerId,
-    view: {
-      type: "modal",
-      callback_id: "checklist_modal",
-      private_metadata: JSON.stringify({
-        orderId,
-        stageId: order.currentStageId,
-      }),
-      title: { type: "plain_text", text: "체크리스트" },
-      submit: { type: "plain_text", text: "저장" },
-      close: { type: "plain_text", text: "취소" },
-      blocks: [
-        {
-          type: "context",
-          elements: [
-            {
-              type: "mrkdwn",
-              text: `*${order.customerName}* · ${order.currentStageName} 단계`,
-            },
-          ],
-        },
-        ...inputBlocks,
-      ],
-    },
-  });
+  const view = {
+    type: "modal" as const,
+    callback_id: "checklist_modal",
+    private_metadata: JSON.stringify({
+      orderId,
+      stageId: order.currentStageId,
+    }),
+    title: { type: "plain_text" as const, text: "체크리스트" },
+    submit: { type: "plain_text" as const, text: "저장" },
+    close: { type: "plain_text" as const, text: "취소" },
+    blocks: [
+      {
+        type: "context",
+        elements: [
+          {
+            type: "mrkdwn",
+            text: `*${order.customerName}* · ${order.currentStageName} 단계`,
+          },
+        ],
+      },
+      ...inputBlocks,
+    ],
+  };
+
+  try {
+    await slackClient.views.push({ trigger_id: triggerId, view });
+  } catch {
+    await slackClient.views.open({ trigger_id: triggerId, view });
+  }
 }
 
 export async function handleChecklistSubmit(payload: any) {
