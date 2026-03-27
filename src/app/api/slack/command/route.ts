@@ -96,6 +96,12 @@ export async function POST(request: NextRequest) {
     return new NextResponse(null, { status: 200 });
   }
 
+  if (command === "/order" && text.trim() === "추가") {
+    const response = await handleOrderCreateCommand(triggerId);
+    if (response) return NextResponse.json(response);
+    return new NextResponse(null, { status: 200 });
+  }
+
   if (command === "/order") {
     return deferCommand(responseUrl, command, () => handleOrderCommand(text));
   }
