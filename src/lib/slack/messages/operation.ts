@@ -136,16 +136,33 @@ export function buildKanbanMessage(board: OperationBoard, unassignedOrders: Orde
     }
   }
 
-  // 단계별 상세 버튼
-  const buttons = board.stages.map((s) => ({
-    type: "button",
-    text: { type: "plain_text", text: `${s.name} 상세` },
-    action_id: `stage_detail_${s.id}`,
-    value: s.id,
-  }));
+  // 상세 버튼 (미배정 + 단계별)
+  const buttons: any[] = [];
+
+  if (unassignedOrders.length > 0) {
+    buttons.push({
+      type: "button",
+      text: { type: "plain_text", text: "미배정 상세" },
+      action_id: "unassigned_detail",
+      value: "unassigned",
+    });
+  }
+
+  for (const s of board.stages) {
+    buttons.push({
+      type: "button",
+      text: { type: "plain_text", text: `${s.name} 상세` },
+      action_id: `stage_detail_${s.id}`,
+      value: s.id,
+    });
+  }
 
   if (buttons.length > 0) {
     blocks.push({ type: "actions", elements: buttons.slice(0, 5) });
+    // 5개 초과 시 두 번째 줄
+    if (buttons.length > 5) {
+      blocks.push({ type: "actions", elements: buttons.slice(5, 10) });
+    }
   }
 
   // Slack 블록 50개 제한 방어

@@ -90,13 +90,15 @@ export async function POST(request: NextRequest) {
     }
 
     if (event.event === "order.deleted") {
+      logger.info({ data: event.data }, "order.deleted 페이로드");
       const order = event.data.order ?? event.data;
+      const customerName = order.customerName ?? order.customer_name ?? "주문";
       const phone = order.phone ? displayPhoneNumber(order.phone) : "";
-      const product = order.productNames ?? order.itemDescription ?? "-";
+      const product = order.productNames ?? order.itemDescription ?? order.product_names ?? order.item_description ?? "";
 
       await slackClient.chat.postMessage({
         channel: env.SLACK_CHANNEL_ORDER,
-        text: `🗑️ 주문 삭제: ${order.customerName} — ${product}`,
+        text: `🗑️ 주문 삭제: ${customerName}${product ? ` — ${product}` : ""}`,
         attachments: [
           {
             color: "#FF3B30",
@@ -105,7 +107,7 @@ export async function POST(request: NextRequest) {
                 type: "section",
                 text: {
                   type: "mrkdwn",
-                  text: `🗑️ *주문이 삭제됐어요*\n\n*주문자:* ${order.customerName}${phone ? ` (${phone})` : ""}\n*상품:* ${product}`,
+                  text: `🗑️ *주문이 삭제됐어요*\n\n*주문자:* ${customerName}${phone ? ` (${phone})` : ""}${product ? `\n*상품:* ${product}` : ""}`,
                 },
               },
             ],

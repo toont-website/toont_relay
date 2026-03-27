@@ -434,6 +434,79 @@ export async function POST(request: NextRequest) {
       });
       return new NextResponse(null, { status: 200 });
     }
+    if (actionId === "unassigned_detail") {
+      const responseUrl = payload.response_url;
+      after(async () => {
+        try {
+          const { getCsToolClient } = await import("@/lib/cs-tool/client");
+          const { postToResponseUrl } = await import("@/lib/slack/deferred-response");
+          const { formatPhoneNumber } = await import("@/lib/utils/phone");
+          const { getOrderChannel } = await import("@/lib/cs-tool/types");
+          const client = getCsToolClient();
+
+          const ordersResult = await client.getOrders({ status: "pending", limit: "50" });
+          const unassigned = (ordersResult.data ?? []).filter((o) => !o.currentStageId);
+
+          const blocks: any[] = [
+            { type: "header", text: { type: "plain_text", text: "⚪ 미배정 주문 상세" } },
+            { type: "divider" },
+          ];
+
+          for (const order of unassigned.slice(0, 15)) {
+            const phone = order.phone ? formatPhoneNumber(order.phone) : "";
+            const channel = getOrderChannel(order);
+            const productName = order.productNames ?? order.itemDescription ?? "-";
+            const deadline = order.dueDate ?? "-";
+
+            blocks.push(
+              {
+                type: "section",
+                text: {
+                  type: "mrkdwn",
+                  text: `👤 *${order.customerName}*${phone ? ` (${phone})` : ""}\n📦 ${channel ? `${channel} / ` : ""}${productName} x${order.quantity}${order.itemDescription && order.productNames ? `\n📝 ${order.itemDescription}` : ""}\n📅 납기: ${deadline}`,
+                },
+              },
+              {
+                type: "actions",
+                elements: [
+                  {
+                    type: "button",
+                    text: { type: "plain_text", text: "주문 상세" },
+                    action_id: "view_order_detail",
+                    value: order.id,
+                  },
+                  {
+                    type: "button",
+                    text: { type: "plain_text", text: "접수 시작" },
+                    action_id: "start_order",
+                    value: order.id,
+                    style: "primary",
+                  },
+                ],
+              },
+              { type: "divider" },
+            );
+          }
+
+          if (unassigned.length === 0) {
+            blocks.push({
+              type: "section",
+              text: { type: "mrkdwn", text: "_미배정 주문이 없어요._" },
+            });
+          }
+
+          if (blocks.length > 48) {
+            blocks.length = 47;
+            blocks.push({ type: "context", elements: [{ type: "mrkdwn", text: "_...일부 주문이 생략됐어요._" }] });
+          }
+
+          await postToResponseUrl(responseUrl, { response_type: "ephemeral", replace_original: false, text: " ", blocks });
+        } catch (error) {
+          logger.error({ error }, "미배정 상세 조회 실패");
+        }
+      });
+      return new NextResponse(null, { status: 200 });
+    }
     // stage_detail_* 동적 액션 — 칸반 단계별 상세 조회
     if (actionId?.startsWith("stage_detail_")) {
       const stageId = payload.actions[0].value;
