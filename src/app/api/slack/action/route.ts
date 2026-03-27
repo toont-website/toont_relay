@@ -297,22 +297,14 @@ export async function POST(request: NextRequest) {
       return new NextResponse(null, { status: 200 });
     }
     if (actionId === "view_order_detail") {
+      const triggerId = payload.trigger_id;
       const orderId = payload.actions[0].value;
-      const responseUrl = payload.response_url;
-      after(async () => {
-        try {
-          const { getCsToolClient } = await import("@/lib/cs-tool/client");
-          const { buildOrderDetailMessage } = await import("@/lib/slack/messages/order-detail");
-          const { postToResponseUrl } = await import("@/lib/slack/deferred-response");
-          const client = getCsToolClient();
-          const result = await client.getOrder(orderId);
-          if (!result.data || !responseUrl) return;
-          const message = buildOrderDetailMessage(result.data);
-          await postToResponseUrl(responseUrl, { ...message, replace_original: false });
-        } catch (error) {
-          logger.error({ error, orderId }, "주문 상세 조회 실패");
-        }
-      });
+      try {
+        const { openOrderDetailModal } = await import("@/lib/slack/messages/order-detail");
+        await openOrderDetailModal(triggerId, orderId);
+      } catch (error) {
+        logger.error({ error, orderId }, "주문 상세 모달 오픈 실패");
+      }
       return new NextResponse(null, { status: 200 });
     }
     // stage_detail_* 동적 액션 — 칸반 단계별 상세 조회

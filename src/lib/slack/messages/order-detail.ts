@@ -1,5 +1,8 @@
 import type { Order } from "@/lib/cs-tool/types";
 import { formatPhoneNumber } from "@/lib/utils/phone";
+import { getCsToolClient } from "@/lib/cs-tool/client";
+import { getSlackClient } from "@/lib/slack/client";
+import { logger } from "@/lib/logger";
 
 const STATUS_MAP: Record<string, string> = {
   pending: "대기",
@@ -169,4 +172,180 @@ export function buildOrderDetailMessage(order: Order) {
   }
 
   return { response_type: "ephemeral" as const, text: " ", blocks };
+}
+
+// ---------------------------------------------------------------------------
+// 모달용 블록 빌더 — copy_template 버튼 제거 (response_url 불가)
+// ---------------------------------------------------------------------------
+
+function buildOrderDetailModalBlocks(order: Order): any[] {
+  const phone = order.phone ? formatPhoneNumber(order.phone) : "-";
+  const status = STATUS_MAP[order.status] ?? order.status;
+  const dueDate = order.dueDate ?? "-";
+
+  const blocks: any[] = [
+    { type: "divider" },
+    {
+      type: "section",
+      fields: [
+        { type: "mrkdwn", text: `*고객:* ${order.customerName} (${phone})` },
+        { type: "mrkdwn", text: `*상품:* ${order.itemDescription ?? "-"} x${order.quantity}` },
+      ],
+    },
+    {
+      type: "section",
+      fields: [
+        { type: "mrkdwn", text: `*배송지:* ${order.address ?? "-"}` },
+        { type: "mrkdwn", text: `*납기일:* ${dueDate}` },
+      ],
+    },
+    {
+      type: "section",
+      fields: [
+        { type: "mrkdwn", text: `*상태:* ${status}` },
+        { type: "mrkdwn", text: `*프로필:* ${order.profileName ?? "-"}` },
+      ],
+    },
+  ];
+
+  if (order.currentStageName) {
+    const deadline = order.stageDeadline
+      ? new Date(order.stageDeadline).toLocaleDateString("ko-KR")
+      : "-";
+    blocks.push({
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `*현재 단계:* ${order.currentStageName} (${deadline}까지)\n*진행률:* ${order.progress ?? "-"}%`,
+      },
+    });
+  }
+
+  if (order.requiredContactTypes.length > 0) {
+    blocks.push({ type: "divider" });
+    const contactLines = order.requiredContactTypes.map((rt) => {
+      const assigned = order.contacts.find((c) => c.type === rt.slug);
+      return assigned
+        ? `${rt.name}: ${assigned.name} (${assigned.phone ? formatPhoneNumber(assigned.phone) : "-"})`
+        : `${rt.name}: 미배정`;
+    });
+    blocks.push({
+      type: "section",
+      text: { type: "mrkdwn", text: `*배정 연락처*\n${contactLines.join("\n")}` },
+    });
+  }
+
+  if (order.checklistStatus.length > 0) {
+    blocks.push({ type: "divider" });
+    for (const cs of order.checklistStatus) {
+      const items = cs.items.map((item) => {
+        if (item.type === "checkbox") {
+          return item.checked ? `[x] ${item.label}` : `[ ] ${item.label}`;
+        }
+        return `${item.label}: "${item.value ?? "-"}"`;
+      });
+      const text = `*체크리스트 (${cs.stageName})*\n${items.join("\n")}`;
+      blocks.push({
+        type: "section",
+        text: { type: "mrkdwn", text: text.slice(0, 3000) },
+      });
+    }
+  }
+
+  if (order.currentStageTemplates.length > 0) {
+    blocks.push({ type: "divider" });
+    blocks.push({
+      type: "section",
+      text: { type: "mrkdwn", text: "*메시지 템플릿*" },
+    });
+    for (const t of order.currentStageTemplates) {
+      const text = `${t.contactTypeName} > ${t.label}\n> ${t.text}`;
+      blocks.push({
+        type: "section",
+        text: { type: "mrkdwn", text: text.slice(0, 3000) },
+      });
+    }
+  }
+
+  // 액션 버튼 — 모달에서는 copy_template 제외 (response_url 없음)
+  const actions: any[] = [];
+
+  const hasUnassigned = order.requiredContactTypes.some(
+    (rt) => !order.contacts.find((c) => c.type === rt.slug),
+  );
+  if (hasUnassigned) {
+    actions.push({
+      type: "button",
+      text: { type: "plain_text", text: "연락처 배정" },
+      action_id: "assign_order_contact",
+      value: order.id,
+    });
+  }
+
+  if (order.checklistStatus.some((cs) => !cs.complete)) {
+    actions.push({
+      type: "button",
+      text: { type: "plain_text", text: "체크리스트 작성" },
+      action_id: "open_checklist",
+      value: order.id,
+    });
+  }
+
+  if (order.currentStageTemplates.length > 0) {
+    actions.push({
+      type: "button",
+      text: { type: "plain_text", text: "보내기" },
+      action_id: "send_template_sms",
+      value: order.id,
+      style: "primary",
+    });
+  }
+
+  if (actions.length > 0) {
+    blocks.push({ type: "actions", elements: actions });
+  }
+
+  if (order.notes) {
+    blocks.push({
+      type: "context",
+      elements: [{ type: "mrkdwn", text: `메모: ${order.notes}` }],
+    });
+  }
+
+  // 모달 블록 100개 제한 방어
+  if (blocks.length > 98) {
+    blocks.length = 97;
+    blocks.push({
+      type: "context",
+      elements: [{ type: "mrkdwn", text: "_...일부 정보가 생략됐어요._" }],
+    });
+  }
+
+  return blocks;
+}
+
+// ---------------------------------------------------------------------------
+// 주문 상세 모달 오픈
+// ---------------------------------------------------------------------------
+
+export async function openOrderDetailModal(triggerId: string, orderId: string) {
+  const client = getCsToolClient();
+  const slackClient = getSlackClient();
+
+  const result = await client.getOrder(orderId);
+  if (!result.data) return;
+
+  const order = result.data;
+  const blocks = buildOrderDetailModalBlocks(order);
+  const titleText = `주문 — ${order.orderId ?? order.customerName}`.slice(0, 24);
+
+  await slackClient.views.open({
+    trigger_id: triggerId,
+    view: {
+      type: "modal",
+      title: { type: "plain_text", text: titleText },
+      close: { type: "plain_text", text: "닫기" },
+      blocks,
+    },
+  });
 }
