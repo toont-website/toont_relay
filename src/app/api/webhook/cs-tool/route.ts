@@ -56,10 +56,21 @@ export async function POST(request: NextRequest) {
   try {
     if (event.event === "order.created") {
       const order = event.data.order ?? event.data;
-      const phone = order.phone ? displayPhoneNumber(order.phone) : "-";
-      const stageName = order.currentStageName ?? "접수";
+      const phone = order.phone ? displayPhoneNumber(order.phone) : "";
+      const stageName = order.currentStageName ?? "미배정";
       const product = order.productNames ?? order.itemDescription ?? "-";
-      const orderDesc = order.itemDescription ?? "-";
+
+      const lines = [
+        `📋 *새 주문이 등록됐어요!*`,
+        ``,
+        `*주문자:* ${order.customerName}${phone ? ` (${phone})` : ""}`,
+        `*상품:* ${product}`,
+        `*단계:* ${stageName}`,
+      ];
+      if (order.itemDescription && order.productNames) lines.push(`*주문내용:* ${order.itemDescription}`);
+      if (order.address) lines.push(`*주소:* ${order.address}`);
+      if (order.dueDate) lines.push(`*납기:* ${order.dueDate}`);
+      lines.push(``, `<https://cs.toont.co.kr/?view=operations&orderId=${order.id}|CS Tool에서 관리하기>`);
 
       await slackClient.chat.postMessage({
         channel: env.SLACK_CHANNEL_ORDER,
@@ -70,10 +81,7 @@ export async function POST(request: NextRequest) {
             blocks: [
               {
                 type: "section",
-                text: {
-                  type: "mrkdwn",
-                  text: `📋 *새 주문이 등록됐어요!*\n\n*주문자:* ${order.customerName} (${phone})\n*주문내용:* ${orderDesc}\n*상품:* ${product}\n*단계:* ${stageName}${order.address ? `\n*주소:* ${order.address}` : ""}${order.dueDate ? `\n*납기:* ${order.dueDate}` : ""}\n\n<https://cs.toont.co.kr/?view=operations&orderId=${order.id}|CS Tool에서 관리하기>`,
-                },
+                text: { type: "mrkdwn", text: lines.join("\n") },
               },
             ],
           },
@@ -83,7 +91,7 @@ export async function POST(request: NextRequest) {
 
     if (event.event === "order.deleted") {
       const order = event.data.order ?? event.data;
-      const phone = order.phone ? displayPhoneNumber(order.phone) : "-";
+      const phone = order.phone ? displayPhoneNumber(order.phone) : "";
       const product = order.productNames ?? order.itemDescription ?? "-";
 
       await slackClient.chat.postMessage({
@@ -97,7 +105,7 @@ export async function POST(request: NextRequest) {
                 type: "section",
                 text: {
                   type: "mrkdwn",
-                  text: `🗑️ *주문이 삭제됐어요*\n\n*주문자:* ${order.customerName} (${phone})\n*상품:* ${product}`,
+                  text: `🗑️ *주문이 삭제됐어요*\n\n*주문자:* ${order.customerName}${phone ? ` (${phone})` : ""}\n*상품:* ${product}`,
                 },
               },
             ],
@@ -110,11 +118,10 @@ export async function POST(request: NextRequest) {
     if (event.event === "order.stage_changed") {
       const order = event.data.order ?? event.data;
       const changes = event.data.changes ?? {};
-      const phone = order.phone ? displayPhoneNumber(order.phone) : "-";
+      const phone = order.phone ? displayPhoneNumber(order.phone) : "";
       const product = order.productNames ?? order.itemDescription ?? "-";
-      const orderDesc = order.itemDescription ?? "-";
-      const prevStage = changes.previousStageName ?? "-";
-      const currStage = changes.currentStageName ?? order.currentStageName ?? "-";
+      const prevStage = changes.previousStageName ?? "미배정";
+      const currStage = changes.currentStageName ?? order.currentStageName ?? "미배정";
 
       await slackClient.chat.postMessage({
         channel: env.SLACK_CHANNEL_OPERATION,
@@ -127,7 +134,7 @@ export async function POST(request: NextRequest) {
                 type: "section",
                 text: {
                   type: "mrkdwn",
-                  text: `🔄 *단계가 변경됐어요*\n\n*주문자:* ${order.customerName} (${phone})\n*주문내용:* ${orderDesc}\n*상품:* ${product}\n*단계:* ${prevStage} → *${currStage}*${order.address ? `\n*주소:* ${order.address}` : ""}\n\n<https://cs.toont.co.kr/?view=operations&orderId=${order.id}|CS Tool에서 관리하기>`,
+                  text: `🔄 *단계가 변경됐어요*\n\n*주문자:* ${order.customerName}${phone ? ` (${phone})` : ""}\n*상품:* ${product}\n*단계:* ${prevStage} → *${currStage}*\n\n<https://cs.toont.co.kr/?view=operations&orderId=${order.id}|CS Tool에서 관리하기>`,
                 },
               },
             ],
@@ -140,9 +147,9 @@ export async function POST(request: NextRequest) {
     if (event.event === "order.deadline_changed") {
       const order = event.data.order ?? event.data;
       const changes = event.data.changes ?? {};
-      const phone = order.phone ? displayPhoneNumber(order.phone) : "-";
+      const phone = order.phone ? displayPhoneNumber(order.phone) : "";
       const product = order.productNames ?? order.itemDescription ?? "-";
-      const stageName = changes.stageName ?? order.currentStageName ?? "-";
+      const stageName = changes.stageName ?? order.currentStageName ?? "미배정";
       const prevDeadline = changes.previousDeadline ? new Date(changes.previousDeadline).toLocaleDateString("ko-KR") : "-";
       const newDeadline = changes.newDeadline ? new Date(changes.newDeadline).toLocaleDateString("ko-KR") : "-";
       const source = changes.source === "google_calendar" ? " (구글 캘린더)" : "";
@@ -158,7 +165,7 @@ export async function POST(request: NextRequest) {
                 type: "section",
                 text: {
                   type: "mrkdwn",
-                  text: `📅 *마감일이 변경됐어요*${source}\n\n*주문자:* ${order.customerName} (${phone})\n*상품:* ${product}\n*단계:* ${stageName}\n*마감:* ${prevDeadline} → *${newDeadline}*\n\n<https://cs.toont.co.kr/?view=operations&orderId=${order.id}|CS Tool에서 관리하기>`,
+                  text: `📅 *마감일이 변경됐어요*${source}\n\n*주문자:* ${order.customerName}${phone ? ` (${phone})` : ""}\n*상품:* ${product}\n*단계:* ${stageName}\n*마감:* ${prevDeadline} → *${newDeadline}*\n\n<https://cs.toont.co.kr/?view=operations&orderId=${order.id}|CS Tool에서 관리하기>`,
                 },
               },
             ],
@@ -171,7 +178,7 @@ export async function POST(request: NextRequest) {
     if (event.event === "order.status_changed") {
       const order = event.data.order ?? event.data;
       const changes = event.data.changes ?? {};
-      const phone = order.phone ? displayPhoneNumber(order.phone) : "-";
+      const phone = order.phone ? displayPhoneNumber(order.phone) : "";
       const product = order.productNames ?? order.itemDescription ?? "-";
       const prevStatus = changes.previousStatus ?? "-";
       const currStatus = changes.currentStatus ?? order.status ?? "-";
@@ -198,7 +205,7 @@ export async function POST(request: NextRequest) {
                 type: "section",
                 text: {
                   type: "mrkdwn",
-                  text: `🔄 *주문 상태가 변경됐어요*\n\n*주문자:* ${order.customerName} (${phone})\n*상품:* ${product}\n*상태:* ${statusMap[prevStatus] ?? prevStatus} → *${statusMap[currStatus] ?? currStatus}*\n\n<https://cs.toont.co.kr/?view=operations&orderId=${order.id}|CS Tool에서 관리하기>`,
+                  text: `🔄 *주문 상태가 변경됐어요*\n\n*주문자:* ${order.customerName}${phone ? ` (${phone})` : ""}\n*상품:* ${product}\n*상태:* ${statusMap[prevStatus] ?? prevStatus} → *${statusMap[currStatus] ?? currStatus}*\n\n<https://cs.toont.co.kr/?view=operations&orderId=${order.id}|CS Tool에서 관리하기>`,
                 },
               },
             ],
