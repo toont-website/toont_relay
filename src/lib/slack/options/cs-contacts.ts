@@ -35,15 +35,17 @@ export async function searchContacts(query: string, contactType?: string) {
     value: JSON.stringify({ id: c.id, phone: c.phone, name: c.name, address: c.address }),
   }));
 
-  const normalized = normalizePhoneNumber(query);
-  const directInputLabel = normalized
-    ? `직접 입력: ${formatPhoneNumber(normalized)}`
-    : `직접 입력: ${query}`;
+  if (query.trim()) {
+    const normalized = normalizePhoneNumber(query);
+    const directInputLabel = normalized
+      ? `직접 입력: ${formatPhoneNumber(normalized)}`
+      : `직접 입력: ${query}`;
 
-  options.push({
-    text: { type: "plain_text", text: directInputLabel },
-    value: normalized ?? DIRECT_INPUT_VALUE,
-  });
+    options.push({
+      text: { type: "plain_text", text: directInputLabel },
+      value: normalized ?? DIRECT_INPUT_VALUE,
+    });
+  }
 
   return { options };
 }
