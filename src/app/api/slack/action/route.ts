@@ -20,6 +20,7 @@ import {
   openContactEditModal,
   handleContactEditSubmit,
 } from "@/lib/slack/commands/contact";
+import { handleContactTypeAddSubmit } from "@/lib/slack/commands/contact-type";
 import {
   openOrderContactModal,
   handleOrderContactSubmit,
@@ -62,6 +63,11 @@ export async function POST(request: NextRequest) {
       after(async () => {
         await executeOrderAdd(result);
       });
+      return new NextResponse(null, { status: 200 });
+    }
+    if (callbackId === "contact_type_add_modal") {
+      const response = await handleContactTypeAddSubmit(payload);
+      if (response) return NextResponse.json(response);
       return new NextResponse(null, { status: 200 });
     }
     if (callbackId === "contact_add_modal" || callbackId === "register_contact_modal") {
