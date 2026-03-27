@@ -253,8 +253,8 @@ function buildOrderDetailModalBlocks(order: Order): any[] {
     const contactLines = order.requiredContactTypes.map((rt) => {
       const assigned = order.contacts.find((c) => c.type === rt.slug);
       return assigned
-        ? `✅ *${rt.name}:* ${assigned.name} (${assigned.phone ? formatPhoneNumber(assigned.phone) : "-"})`
-        : `⬜ *${rt.name}:* 미배정`;
+        ? `• *${rt.name}:* ${assigned.name} (${assigned.phone ? formatPhoneNumber(assigned.phone) : "-"}) ✓`
+        : `• *${rt.name}:* _미배정_`;
     });
     blocks.push({
       type: "section",
@@ -266,13 +266,20 @@ function buildOrderDetailModalBlocks(order: Order): any[] {
   if (order.checklistStatus.length > 0) {
     blocks.push({ type: "divider" });
     for (const cs of order.checklistStatus) {
+      const done = cs.items.filter((i) => i.type === "checkbox" ? i.checked : !!i.value).length;
+      const total = cs.items.length;
       const items = cs.items.map((item) => {
         if (item.type === "checkbox") {
-          return item.checked ? `  ✅ ${item.label}` : `  ⬜ ${item.label}`;
+          return item.checked
+            ? `    *[✓]* ~${item.label}~`
+            : `    *[  ]* ${item.label}`;
         }
-        return `  📝 ${item.label}: _${item.value ?? "-"}_`;
+        return item.value
+          ? `    *[✓]* ${item.label}: \`${item.value}\``
+          : `    *[  ]* ${item.label}: _미입력_`;
       });
-      const text = `*체크리스트 — ${cs.stageName}*\n${items.join("\n")}`;
+      const progress = done === total ? " ✓" : ` (${done}/${total})`;
+      const text = `*${cs.stageName}*${progress}\n${items.join("\n")}`;
       blocks.push({
         type: "section",
         text: { type: "mrkdwn", text: text.slice(0, 3000) },
