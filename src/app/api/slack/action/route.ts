@@ -252,6 +252,7 @@ export async function POST(request: NextRequest) {
     if (actionId === "send_template_sms") {
       const triggerId = payload.trigger_id;
       const rawValue = payload.actions[0].value;
+      const fromModal = !!payload.view;
       try {
         let orderId = rawValue;
         let templateIndex: number | undefined;
@@ -260,7 +261,7 @@ export async function POST(request: NextRequest) {
           orderId = parsed.orderId;
           templateIndex = parsed.templateIndex;
         } catch { /* 하위호환: 순수 orderId 문자열 */ }
-        await openTemplateSendModal(triggerId, orderId, templateIndex);
+        await openTemplateSendModal(triggerId, orderId, templateIndex, fromModal);
       } catch (error) {
         logger.error({ error, actionId }, "모달 오픈 실패");
       }
@@ -279,8 +280,9 @@ export async function POST(request: NextRequest) {
     if (actionId === "open_checklist") {
       const triggerId = payload.trigger_id;
       const orderId = payload.actions[0].value;
+      const fromModal = !!payload.view;
       try {
-        await openChecklistModal(triggerId, orderId);
+        await openChecklistModal(triggerId, orderId, fromModal);
       } catch (error) {
         logger.error({ error, actionId }, "모달 오픈 실패");
       }
@@ -289,8 +291,9 @@ export async function POST(request: NextRequest) {
     if (actionId === "move_next_stage") {
       const triggerId = payload.trigger_id;
       const orderId = payload.actions[0].value;
+      const fromModal = !!payload.view;
       try {
-        await handleMoveNextStage(triggerId, orderId);
+        await handleMoveNextStage(triggerId, orderId, fromModal);
       } catch (error) {
         logger.error({ error, actionId }, "모달 오픈 실패");
       }
@@ -299,8 +302,9 @@ export async function POST(request: NextRequest) {
     if (actionId === "complete_order") {
       const triggerId = payload.trigger_id;
       const orderId = payload.actions[0].value;
+      const fromModal = !!payload.view;
       try {
-        await handleCompleteOrder(triggerId, orderId);
+        await handleCompleteOrder(triggerId, orderId, fromModal);
       } catch (error) {
         logger.error({ error, actionId }, "모달 오픈 실패");
       }
@@ -309,11 +313,59 @@ export async function POST(request: NextRequest) {
     if (actionId === "assign_order_contact") {
       const triggerId = payload.trigger_id;
       const orderId = payload.actions[0].value;
+      const fromModal = !!payload.view;
       try {
-        await openOrderContactModal(triggerId, orderId);
+        await openOrderContactModal(triggerId, orderId, fromModal);
       } catch (error) {
         logger.error({ error, actionId }, "모달 오픈 실패");
       }
+      return new NextResponse(null, { status: 200 });
+    }
+    if (actionId === "start_order") {
+      const orderId = payload.actions[0].value;
+      const viewId = payload.view?.id;
+      after(async () => {
+        try {
+          const { getCsToolClient } = await import("@/lib/cs-tool/client");
+          const { getSlackClient } = await import("@/lib/slack/client");
+          const client = getCsToolClient();
+          const slackClient = getSlackClient();
+
+          // 첫 번째 단계(접수) 조회
+          const stagesResult = await client.getStages();
+          const stages = stagesResult.data ?? [];
+          const firstStage = stages.sort((a, b) => a.position - b.position)[0];
+          if (!firstStage) {
+            logger.error({ orderId }, "접수 시작 실패: 단계 없음");
+            return;
+          }
+
+          await client.updateOperationStatus(orderId, { stageId: firstStage.id });
+          logger.info({ orderId, stageId: firstStage.id }, "접수 시작 완료");
+
+          // 모달 새로고침
+          if (viewId) {
+            const { openOrderDetailModal } = await import("@/lib/slack/messages/order-detail");
+            const orderResult = await client.getOrder(orderId);
+            if (orderResult.data) {
+              const { buildOrderDetailModalBlocks } = await import("@/lib/slack/messages/order-detail");
+              const blocks = buildOrderDetailModalBlocks(orderResult.data);
+              const titleText = `주문 — ${orderResult.data.customerName}`.slice(0, 24);
+              await slackClient.views.update({
+                view_id: viewId,
+                view: {
+                  type: "modal",
+                  title: { type: "plain_text", text: titleText },
+                  close: { type: "plain_text", text: "닫기" },
+                  blocks,
+                },
+              });
+            }
+          }
+        } catch (error) {
+          logger.error({ error, orderId }, "접수 시작 실패");
+        }
+      });
       return new NextResponse(null, { status: 200 });
     }
     if (actionId === "delete_order") {

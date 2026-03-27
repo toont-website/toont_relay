@@ -29,7 +29,7 @@ export async function handleCopyTemplate(orderId: string, responseUrl: string, t
 }
 
 // 📨 보내기 버튼 → SMS 발송 모달 (특정 템플릿 미리 채움)
-export async function openTemplateSendModal(triggerId: string, orderId: string, templateIndex?: number) {
+export async function openTemplateSendModal(triggerId: string, orderId: string, templateIndex?: number, fromModal = false) {
   const client = getCsToolClient();
   const slackClient = getSlackClient();
   const order = await client.getOrder(orderId);
@@ -80,12 +80,8 @@ export async function openTemplateSendModal(triggerId: string, orderId: string, 
     ],
   };
 
-  // 모달 안에서 호출 시 push, 그 외 open
-  try {
-    await slackClient.views.push({ trigger_id: triggerId, view });
-  } catch {
-    await slackClient.views.open({ trigger_id: triggerId, view });
-  }
+  const { openOrPushView } = await import("@/lib/slack/client");
+  await openOrPushView(slackClient, { trigger_id: triggerId, view }, fromModal);
 }
 
 // 발송 제출 → 컨펌 모달 (push)

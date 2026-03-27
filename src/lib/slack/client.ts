@@ -13,15 +13,19 @@ export function getSlackClient(): WebClient {
 
 /**
  * 모달 안에서 호출 시 views.push, 그 외 views.open
- * 모달 내 버튼 클릭의 trigger_id는 push만 가능한 경우가 있음
+ * fromModal=true: push 시도 → open 폴백
+ * fromModal=false: 바로 open (trigger_id 시간 절약)
  */
 export async function openOrPushView(
   client: WebClient,
-  params: { trigger_id: string; view: any }
+  params: { trigger_id: string; view: any },
+  fromModal = false
 ) {
-  try {
-    await client.views.push(params);
-  } catch {
-    await client.views.open(params);
+  if (fromModal) {
+    try {
+      await client.views.push(params);
+      return;
+    } catch { /* push 불가 시 open 폴백 */ }
   }
+  await client.views.open(params);
 }

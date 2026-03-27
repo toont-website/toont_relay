@@ -4,7 +4,8 @@ import { logger } from "@/lib/logger";
 
 export async function handleMoveNextStage(
   triggerId: string,
-  orderId: string
+  orderId: string,
+  fromModal = false
 ) {
   const client = getCsToolClient();
   const slackClient = getSlackClient();
@@ -39,7 +40,7 @@ export async function handleMoveNextStage(
           },
         ],
       },
-    });
+    }, fromModal);
     return;
   }
 
@@ -104,7 +105,7 @@ export async function handleMoveNextStage(
   await openOrPushView(slackClient, {
     trigger_id: triggerId,
     view: {
-      type: "modal",
+      type: "modal" as const,
       callback_id: "stage_move_modal",
       private_metadata: JSON.stringify({
         orderId,
@@ -117,12 +118,13 @@ export async function handleMoveNextStage(
       close: { type: "plain_text", text: "취소" },
       blocks,
     },
-  });
+  }, fromModal);
 }
 
 export async function handleCompleteOrder(
   triggerId: string,
-  orderId: string
+  orderId: string,
+  fromModal = false
 ) {
   const client = getCsToolClient();
   const slackClient = getSlackClient();
@@ -176,7 +178,7 @@ export async function handleCompleteOrder(
           },
         ],
       },
-    });
+    }, fromModal);
     return;
   }
 
@@ -197,7 +199,7 @@ export async function handleCompleteOrder(
           },
         ],
       },
-    });
+    }, fromModal);
   } catch (error) {
     const msg = error instanceof Error ? error.message : "알 수 없는 에러";
     logger.error({ error: msg, orderId }, "주문 완료 처리 실패");
@@ -214,7 +216,7 @@ export async function handleCompleteOrder(
           },
         ],
       },
-    });
+    }, fromModal);
   }
 }
 

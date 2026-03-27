@@ -1,8 +1,8 @@
 import { getCsToolClient } from "@/lib/cs-tool/client";
-import { getSlackClient } from "@/lib/slack/client";
+import { getSlackClient, openOrPushView } from "@/lib/slack/client";
 import { logger } from "@/lib/logger";
 
-export async function openChecklistModal(triggerId: string, orderId: string) {
+export async function openChecklistModal(triggerId: string, orderId: string, fromModal = false) {
   const client = getCsToolClient();
   const slackClient = getSlackClient();
   const orderResult = await client.getOrder(orderId);
@@ -84,11 +84,8 @@ export async function openChecklistModal(triggerId: string, orderId: string) {
     ],
   };
 
-  try {
-    await slackClient.views.push({ trigger_id: triggerId, view });
-  } catch {
-    await slackClient.views.open({ trigger_id: triggerId, view });
-  }
+  const params = { trigger_id: triggerId, view };
+  await openOrPushView(slackClient, params, fromModal);
 }
 
 export async function handleChecklistSubmit(payload: any) {

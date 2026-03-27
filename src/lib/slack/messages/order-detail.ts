@@ -184,7 +184,7 @@ export function buildOrderDetailMessage(order: Order) {
 // 모달용 블록 빌더 — copy_template 버튼 제거 (response_url 불가)
 // ---------------------------------------------------------------------------
 
-function buildOrderDetailModalBlocks(order: Order): any[] {
+export function buildOrderDetailModalBlocks(order: Order): any[] {
   const phone = order.phone ? formatPhoneNumber(order.phone) : "-";
   const status = STATUS_MAP[order.status] ?? order.status;
   const statusIcon = order.status === "completed" ? "✅" : order.status === "cancelled" ? "❌" : "🔵";
@@ -289,6 +289,17 @@ function buildOrderDetailModalBlocks(order: Order): any[] {
 
   // ── 액션 버튼 ──
   const topActions: any[] = [];
+
+  // 미배정 상태면 접수 시작 버튼
+  if (!order.currentStageId) {
+    topActions.push({
+      type: "button",
+      text: { type: "plain_text", text: "접수 시작" },
+      action_id: "start_order",
+      value: order.id,
+      style: "primary",
+    });
+  }
 
   const hasUnassigned = order.requiredContactTypes.some(
     (rt) => !order.contacts.find((c) => c.type === rt.slug),

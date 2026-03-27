@@ -1,8 +1,8 @@
 import { getCsToolClient } from "@/lib/cs-tool/client";
-import { getSlackClient } from "@/lib/slack/client";
+import { getSlackClient, openOrPushView } from "@/lib/slack/client";
 import { logger } from "@/lib/logger";
 
-export async function openOrderContactModal(triggerId: string, orderId: string) {
+export async function openOrderContactModal(triggerId: string, orderId: string, fromModal = false) {
   const client = getCsToolClient();
   const slackClient = getSlackClient();
 
@@ -37,11 +37,7 @@ export async function openOrderContactModal(triggerId: string, orderId: string) 
     blocks,
   };
 
-  try {
-    await slackClient.views.push({ trigger_id: triggerId, view });
-  } catch {
-    await slackClient.views.open({ trigger_id: triggerId, view });
-  }
+  await openOrPushView(slackClient, { trigger_id: triggerId, view }, fromModal);
 }
 
 export async function handleOrderContactSubmit(payload: any) {
