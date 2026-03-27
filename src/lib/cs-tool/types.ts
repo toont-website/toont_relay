@@ -198,6 +198,8 @@ export interface Profile {
   isDefault: boolean;
   contactTypeIds: string[];
   skus: string[];
+  skuNames?: string[];
+  contactTypeNames?: string[];
   variableHints: Record<string, string>;
   createdAt: string;
   updatedAt: string;

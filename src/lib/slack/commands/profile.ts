@@ -36,13 +36,23 @@ async function listProfiles(search?: string) {
 
   for (const p of filtered) {
     const badge = p.isDefault ? " ⭐ 기본" : "";
-    const skus = p.skus.length > 0 ? p.skus.join(", ") : "-";
+    const productDisplay = p.skuNames && p.skuNames.length > 0
+      ? p.skuNames.join(", ")
+      : p.skus.length > 0 ? p.skus.join(", ") : "-";
+    const contactTypes = p.contactTypeNames && p.contactTypeNames.length > 0
+      ? p.contactTypeNames.join(", ")
+      : "";
+
+    const lines = [`📌 *${p.name}*${badge}`];
+    if (p.description) lines.push(`   설명: ${p.description}`);
+    lines.push(`   상품: ${productDisplay}`);
+    if (contactTypes) lines.push(`   필수 연락처: ${contactTypes}`);
 
     blocks.push({
       type: "section",
       text: {
         type: "mrkdwn",
-        text: `📌 *${p.name}*${badge}\n   SKU: ${skus}\n   ${p.description ?? ""}`,
+        text: lines.join("\n"),
       },
       accessory: {
         type: "button",
@@ -73,23 +83,9 @@ export async function openProfileEditModal(
   const client = getCsToolClient();
   const slackClient = getSlackClient();
 
-  const [profileResult, typesResult] = await Promise.all([
-    client.getProfile(profileId),
-    client.getContactTypes(),
-  ]);
-
+  const profileResult = await client.getProfile(profileId);
   const profile = profileResult.data;
-  const types = typesResult.data ?? [];
   if (!profile) return;
-
-  const typeOptions = types.map((t) => ({
-    text: { type: "plain_text" as const, text: t.name },
-    value: t.id,
-  }));
-
-  const initialTypes = typeOptions.filter((o) =>
-    profile.contactTypeIds.includes(o.value)
-  );
 
   await slackClient.views.open({
     trigger_id: triggerId,
@@ -124,56 +120,6 @@ export async function openProfileEditModal(
               : {}),
           },
         },
-        {
-          type: "input",
-          block_id: "default_block",
-          label: { type: "plain_text", text: "기본 프로필" },
-          optional: true,
-          element: {
-            type: "checkboxes",
-            action_id: "default_check",
-            options: [
-              {
-                text: {
-                  type: "plain_text",
-                  text: "기본 프로필로 설정",
-                },
-                value: "default",
-              },
-            ],
-            ...(profile.isDefault
-              ? {
-                  initial_options: [
-                    {
-                      text: {
-                        type: "plain_text",
-                        text: "기본 프로필로 설정",
-                      },
-                      value: "default",
-                    },
-                  ],
-                }
-              : {}),
-          },
-        },
-        ...(typeOptions.length > 0
-          ? [
-              {
-                type: "input" as const,
-                block_id: "types_block",
-                label: { type: "plain_text" as const, text: "필수 연락처 타입" },
-                optional: true,
-                element: {
-                  type: "multi_static_select" as const,
-                  action_id: "types_select",
-                  options: typeOptions,
-                  ...(initialTypes.length > 0
-                    ? { initial_options: initialTypes }
-                    : {}),
-                },
-              } as any,
-            ]
-          : []),
       ],
     },
   });
@@ -192,19 +138,12 @@ export async function handleProfileEditSubmit(payload: any) {
 
   const name = values.name_block.name_input.value;
   const description = values.desc_block?.desc_input?.value;
-  const isDefault =
-    (values.default_block?.default_check?.selected_options?.length ?? 0) > 0;
-  const contactTypeIds = (
-    values.types_block?.types_select?.selected_options ?? []
-  ).map((o: any) => o.value);
 
   const client = getCsToolClient();
   try {
     await client.updateProfile(profileId, {
       name,
       description,
-      isDefault,
-      contactTypeIds,
     });
     logger.info({ profileId, name }, "프로필 수정 완료");
     return {
