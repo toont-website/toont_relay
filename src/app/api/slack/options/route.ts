@@ -10,7 +10,16 @@ export async function POST(request: NextRequest) {
   if (!payload) return NextResponse.json({ options: [] });
 
   const query = payload.value ?? "";
-  const searchResult = await searchContacts(query);
+  const actionId = payload.action_id ?? "";
+
+  let contactType: string | undefined;
+  if (actionId === "customer_contact_select") {
+    contactType = "customer";
+  } else if (actionId === "freight_contact_select") {
+    contactType = "freight";
+  }
+
+  const searchResult = await searchContacts(query, contactType);
 
   return NextResponse.json(searchResult);
 }

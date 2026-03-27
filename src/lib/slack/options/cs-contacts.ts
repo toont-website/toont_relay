@@ -6,20 +6,21 @@ const DIRECT_INPUT_VALUE = "__direct_input__";
 
 export { DIRECT_INPUT_VALUE };
 
-export async function searchContacts(query: string) {
-  if (!query.trim()) {
-    return { options: [] };
-  }
-
+export async function searchContacts(query: string, contactType?: string) {
   let contacts: { id: string; name: string; phone: string }[] = [];
   try {
-    const res = await getCsToolClient().getContacts({ search: query, limit: "10" });
+    const client = getCsToolClient();
+    const res = await client.getContacts({
+      ...(contactType ? { type: contactType } : {}),
+      ...(query.trim() ? { search: query } : {}),
+      limit: "10",
+    });
     contacts = (res.data ?? []).map((c) => ({
       id: c.id,
       name: c.name,
       phone: c.phone,
     }));
-    logger.debug({ query, count: contacts.length }, "연락처 검색 (CS Tool)");
+    logger.debug({ query, contactType, count: contacts.length }, "연락처 검색 (CS Tool)");
   } catch (e) {
     logger.error({ error: e }, "연락처 검색 CS Tool API 에러");
     contacts = [];
