@@ -859,13 +859,11 @@ export async function validateOrderAdd(
   const selectedProducts: any[] = values.product_block?.product_select?.selected_options ?? [];
   const manualProduct = values.product_block?.product_input?.value;
 
-  let itemDescription: string | undefined;
   let skus: string[] = [];
   let skuQuantities: Record<string, number> = {};
   let quantity = 0;
 
   if (selectedProducts.length > 0) {
-    const names: string[] = [];
     const errors: Record<string, string> = {};
 
     for (const opt of selectedProducts) {
@@ -876,13 +874,11 @@ export async function validateOrderAdd(
         continue;
       }
       const productSku = parsed.sku as string;
-      const productName = parsed.name as string;
 
-      names.push(productName);
       skus.push(productSku);
 
       const rawQty = values[`qty_${productSku}`]?.[`qty_input_${productSku}`]?.value;
-      const qty = rawQty ? parseInt(rawQty, 10) : 1; // 수량 필드 없으면 기본값 1
+      const qty = rawQty ? parseInt(rawQty, 10) : 1;
       if (isNaN(qty) || qty <= 0) {
         errors[`qty_${productSku}`] = "1 이상의 숫자를 입력해주세요.";
       } else {
@@ -894,10 +890,8 @@ export async function validateOrderAdd(
       return { response_action: "errors" as const, errors };
     }
 
-    itemDescription = names.join(", ");
     quantity = Object.values(skuQuantities).reduce((sum, q) => sum + q, 0);
   } else if (manualProduct) {
-    itemDescription = manualProduct;
     const rawQty = values.quantity_block?.quantity_input?.value;
     quantity = rawQty ? parseInt(rawQty, 10) : 1;
     if (isNaN(quantity) || quantity <= 0) {
@@ -908,11 +902,8 @@ export async function validateOrderAdd(
     }
   }
 
-  // 주문내용
-  const description = values.description_block?.description_input?.value ?? undefined;
-  if (description) {
-    itemDescription = itemDescription ? `${itemDescription}\n${description}` : description;
-  }
+  // 주문내용 (사용자 입력만, 상품명 합치지 않음)
+  const itemDescription = values.description_block?.description_input?.value ?? (manualProduct || undefined);
 
   // 수령지 주소
   const address = values.address_block?.address_input?.value ?? undefined;
