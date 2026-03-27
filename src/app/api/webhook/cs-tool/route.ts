@@ -185,14 +185,27 @@ export async function POST(request: NextRequest) {
     if (event.event === "inventory.updated") {
       const item = event.data.item ?? event.data;
       const change = event.data.change ?? {};
-      const isInbound = change.type === "inbound";
+
+      // 실제 페이로드 로그 (디버깅용)
+      logger.info({ item, change }, "inventory.updated 페이로드");
+
+      const itemName = item.name ?? item.productName ?? item.sku ?? "품목";
+      const itemSku = item.sku ?? "-";
+      const unit = item.unit ?? "개";
+      const currentQty = item.quantity ?? item.stock ?? "?";
+      const changeQty = Math.abs(change.quantity ?? 0);
+
+      // 음수 수량이면 실제로는 입고 (주문 취소/복원)
+      const isNegativeOutbound = change.type !== "inbound" && (change.quantity ?? 0) < 0;
+      const isInbound = change.type === "inbound" || isNegativeOutbound;
       const color = isInbound ? "#36C759" : "#2196F3";
       const icon = isInbound ? "📥 입고" : "📤 출고";
+      const sign = isInbound ? "+" : "-";
       const reason = change.reason ? ` · ${change.reason}` : "";
 
       await slackClient.chat.postMessage({
         channel: env.SLACK_CHANNEL_INVENTORY,
-        text: `${icon} ${item.name} ${isInbound ? "+" : "-"}${change.quantity ?? "?"}`,
+        text: `${icon} ${itemName} ${sign}${changeQty}`,
         attachments: [
           {
             color,
@@ -201,7 +214,7 @@ export async function POST(request: NextRequest) {
                 type: "section",
                 text: {
                   type: "mrkdwn",
-                  text: `${icon} *${item.name}* (\`${item.sku}\`)\n>${isInbound ? "+" : "-"}${change.quantity ?? "?"}${item.unit ?? "개"}${reason}\n\n*현재 재고:* ${item.quantity}${item.unit ?? "개"}\n\n<https://cs.toont.co.kr/?view=inventory|재고 관리하기>`,
+                  text: `${icon} *${itemName}* (\`${itemSku}\`)\n>${sign}${changeQty}${unit}${reason}\n\n*현재 재고:* ${currentQty}${unit}\n\n<https://cs.toont.co.kr/?view=inventory|재고 관리하기>`,
                 },
               },
             ],
@@ -212,10 +225,14 @@ export async function POST(request: NextRequest) {
 
     if (event.event === "inventory.low_stock") {
       const item = event.data.item ?? event.data;
+      const itemName = item.name ?? item.productName ?? item.sku ?? "품목";
+      const unit = item.unit ?? "개";
+      const currentQty = item.quantity ?? item.stock ?? "?";
+      const minQty = item.minQuantity ?? item.minStock ?? "?";
 
       await slackClient.chat.postMessage({
         channel: env.SLACK_CHANNEL_INVENTORY,
-        text: `⚠️ 재고 부족: ${item.name} (${item.quantity}${item.unit})`,
+        text: `⚠️ 재고 부족: ${itemName} (${currentQty}${unit})`,
         attachments: [
           {
             color: "#FF3B30",
@@ -224,7 +241,7 @@ export async function POST(request: NextRequest) {
                 type: "section",
                 text: {
                   type: "mrkdwn",
-                  text: `⚠️ *재고가 부족해요!*\n\n*품목:* ${item.name} (${item.sku})\n*현재:* ${item.quantity}${item.unit}\n*기준:* ${item.minQuantity}${item.unit}\n\n발주를 검토해주세요.\n\n<https://cs.toont.co.kr/?view=inventory|재고 관리하기>`,
+                  text: `⚠️ *재고가 부족해요!*\n\n*품목:* ${itemName} (${item.sku ?? "-"})\n*현재:* ${currentQty}${unit}\n*기준:* ${minQty}${unit}\n\n발주를 검토해주세요.\n\n<https://cs.toont.co.kr/?view=inventory|재고 관리하기>`,
                 },
               },
             ],
