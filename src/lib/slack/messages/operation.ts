@@ -1,4 +1,4 @@
-import type { OperationBoard, OperationStage } from "@/lib/cs-tool/types";
+import { type OperationBoard, type OperationStage, getOrderChannel } from "@/lib/cs-tool/types";
 
 const STAGE_EMOJI: Record<string, string> = {
   blue: "🔵",
@@ -28,7 +28,7 @@ export function buildKanbanMessage(board: OperationBoard) {
   for (const stage of board.stages) {
     const emoji = STAGE_EMOJI[stage.color] ?? "⚪";
     const lines = stage.orders.slice(0, 5).map((o) => {
-      const channel = o.orderId ?? "-";
+      const channel = getOrderChannel(o) ?? "-";
       const productName = o.productNames ?? o.itemDescription ?? "-";
       const deadline = o.stageDeadline
         ? new Date(o.stageDeadline).toLocaleDateString("ko-KR")
@@ -94,7 +94,7 @@ export function buildStageDetailMessage(stage: OperationStage, isLastStage = fal
       : "-";
     const warn = isDeadlineApproaching(order.stageDeadline) ? " ⚠️ D-1" : "";
 
-    const channel = order.orderId ?? "-";
+    const channel = getOrderChannel(order) ?? "-";
     const productName = order.productNames ?? order.itemDescription ?? "-";
 
     const checklistInfo =

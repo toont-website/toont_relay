@@ -1,4 +1,5 @@
 import { getCsToolClient } from "@/lib/cs-tool/client";
+import { getOrderChannel } from "@/lib/cs-tool/types";
 import { logger } from "@/lib/logger";
 /**
  * /dashboard — 운영 현황 대시보드
@@ -68,7 +69,7 @@ export async function handleDashboardCommand() {
           text: { type: "mrkdwn", text: `*${stage}* (${stageOrders.length}건)` },
         });
         for (const order of stageOrders) {
-          const channel = order.orderId ?? "-";
+          const channel = getOrderChannel(order) ?? "-";
           const productName = order.productNames ?? order.itemDescription ?? "-";
           const deadline = order.stageDeadline ?? order.dueDate ?? "-";
           blocks.push({

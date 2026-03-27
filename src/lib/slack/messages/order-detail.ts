@@ -1,4 +1,4 @@
-import type { Order } from "@/lib/cs-tool/types";
+import { type Order, getOrderChannel } from "@/lib/cs-tool/types";
 import { formatPhoneNumber } from "@/lib/utils/phone";
 import { getCsToolClient } from "@/lib/cs-tool/client";
 import { getSlackClient } from "@/lib/slack/client";
@@ -19,7 +19,7 @@ export function buildOrderDetailMessage(order: Order) {
   const blocks: any[] = [
     {
       type: "header",
-      text: { type: "plain_text", text: `📦 주문 상세 — ${order.orderId ?? order.id.slice(0, 8)}` },
+      text: { type: "plain_text", text: `📦 주문 상세 — ${getOrderChannel(order) ?? order.id.slice(0, 8)}` },
     },
     { type: "divider" },
     {
@@ -190,7 +190,7 @@ function buildOrderDetailModalBlocks(order: Order): any[] {
   const statusIcon = order.status === "completed" ? "✅" : order.status === "cancelled" ? "❌" : "🔵";
   const dueDate = order.dueDate ?? "-";
   const productName = order.productNames ?? order.itemDescription ?? "-";
-  const channel = order.orderId ?? "-";
+  const channel = getOrderChannel(order) ?? "-";
 
   const blocks: any[] = [];
 
@@ -368,7 +368,7 @@ export async function openOrderDetailModal(triggerId: string, orderId: string) {
 
   const order = result.data;
   const blocks = buildOrderDetailModalBlocks(order);
-  const titleText = `주문 — ${order.orderId ?? order.customerName}`.slice(0, 24);
+  const titleText = `주문 — ${getOrderChannel(order) ?? order.customerName}`.slice(0, 24);
 
   await slackClient.views.open({
     trigger_id: triggerId,

@@ -7,6 +7,16 @@ export interface CsToolResponse<T> {
 }
 
 // 주문
+/**
+ * 주문에서 구매경로 추출 (channel > templateVariables.channel > orderId 순)
+ */
+export function getOrderChannel(order: Order): string | undefined {
+  return order.channel
+    ?? (order.templateVariables?.channel as string | undefined)
+    ?? order.orderId
+    ?? undefined;
+}
+
 export interface Order {
   id: string;
   orderId?: string;

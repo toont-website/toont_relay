@@ -1,4 +1,5 @@
 import { getCsToolClient } from "@/lib/cs-tool/client";
+import { getOrderChannel } from "@/lib/cs-tool/types";
 import { getSlackClient } from "@/lib/slack/client";
 import { logger } from "@/lib/logger";
 
@@ -159,7 +160,7 @@ export async function handleOrderCommand(text: string, page: number = 1) {
     ];
 
     for (const order of orders) {
-      const channel = order.orderId || undefined;
+      const channel = getOrderChannel(order);
       const productName = order.productNames ?? order.itemDescription ?? "-";
       const deadline = order.stageDeadline ?? order.dueDate ?? "-";
       const stageName = order.currentStageName

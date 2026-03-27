@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getEnv } from "@/lib/config/env";
 import { getCsToolClient } from "@/lib/cs-tool/client";
+import { getOrderChannel } from "@/lib/cs-tool/types";
 import { getSlackClient } from "@/lib/slack/client";
 import { prisma } from "@/lib/db/prisma";
 import { logger } from "@/lib/logger";
@@ -76,7 +77,7 @@ export async function GET(request: NextRequest) {
                   type: "section",
                   text: {
                     type: "mrkdwn",
-                    text: `⏰ *마감 임박 알림*\n\n📦 ${order.orderId ?? order.customerName} — ${order.customerName} / ${order.itemDescription ?? "-"} x${order.quantity}\n   현재 단계: ${stage.name}\n   마감일: 내일 (${tomorrowStr})`,
+                    text: `⏰ *마감 임박 알림*\n\n📦 ${getOrderChannel(order) ?? order.customerName} — ${order.customerName} / ${order.itemDescription ?? "-"} x${order.quantity}\n   현재 단계: ${stage.name}\n   마감일: 내일 (${tomorrowStr})`,
                   },
                 },
                 {
