@@ -142,6 +142,17 @@ export async function GET(request: NextRequest) {
     }
   } else if (!wasHealthy && currentlyHealthy) {
     // 장애 → 정상: 복구 알림
+    // 마지막으로 정상이었던 로그 찾기
+    const lastHealthyLog = await prisma.healthCheckLog.findFirst({
+      where: {
+        mysqlStatus: "ok",
+        gatewayStatus: "ok",
+        deviceStatus: "ok",
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    // 그 이후 첫 번째 실패 로그 = 장애 시작 시점
     const firstFailLog = await prisma.healthCheckLog.findFirst({
       where: {
         OR: [
@@ -149,8 +160,11 @@ export async function GET(request: NextRequest) {
           { gatewayStatus: { not: "ok" } },
           { deviceStatus: { not: "ok" } },
         ],
+        ...(lastHealthyLog
+          ? { createdAt: { gt: lastHealthyLog.createdAt } }
+          : {}),
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: { createdAt: "asc" },
     });
 
     const downMinutes = firstFailLog
