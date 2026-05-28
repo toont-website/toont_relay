@@ -270,6 +270,66 @@ export interface ProfileMatchResponse {
   matchCount: number;
 }
 
+type CsToolWebhookScalar = string | number | boolean | null | undefined;
+type CsToolWebhookValue =
+  | CsToolWebhookScalar
+  | CsToolWebhookScalar[]
+  | CsToolWebhookRecord
+  | CsToolWebhookRecord[];
+
+export interface CsToolWebhookRecord {
+  [key: string]: CsToolWebhookValue;
+  id?: string;
+  customerName?: string;
+  customer_name?: string;
+  phone?: string;
+  address?: string;
+  productName?: string;
+  productNames?: string;
+  product_names?: string;
+  itemDescription?: string;
+  item_description?: string;
+  currentStageName?: string;
+  dueDate?: string;
+  status?: string;
+  deliveryEstimatedTime?: string | null;
+  name?: string;
+  sku?: string;
+  unit?: string;
+  quantity?: number;
+  stock?: number;
+  minQuantity?: number;
+  minStock?: number;
+  type?: string;
+  reason?: string;
+  previousStageName?: string;
+  stageName?: string;
+  previousDeadline?: string;
+  newDeadline?: string;
+  source?: string;
+  previousStatus?: string;
+  currentStatus?: string;
+  operationCode?: string;
+  operationName?: string;
+  count?: number;
+}
+
+export interface CsToolWebhookData extends CsToolWebhookRecord {
+  order?: CsToolWebhookRecord;
+  changes?: CsToolWebhookRecord;
+  item?: CsToolWebhookRecord;
+  change?: CsToolWebhookRecord;
+  channelId?: string;
+  reminderType?: string;
+  label?: string;
+  targetDate?: string;
+  orderId?: string;
+  summaryDate?: string;
+  totalSent?: number;
+  logsUrl?: string;
+  items?: CsToolWebhookRecord[];
+}
+
 // 웹훅 이벤트
 export interface CsToolWebhookEvent {
   event:
@@ -278,8 +338,10 @@ export interface CsToolWebhookEvent {
     | "order.stage_changed"
     | "order.deadline_changed"
     | "order.status_changed"
+    | "order.reminder_due"
+    | "alimtalk.daily_summary"
     | "inventory.updated"
     | "inventory.low_stock";
-  data: any;
+  data: CsToolWebhookData;
   timestamp: string;
 }
