@@ -5,6 +5,10 @@ import { getSlackClient } from "@/lib/slack/client";
 import { logger } from "@/lib/logger";
 import { displayPhoneNumber } from "@/lib/utils/phone";
 import type { CsToolWebhookEvent } from "@/lib/cs-tool/types";
+import {
+  buildAlimtalkDailySummarySlackMessage,
+  buildOrderReminderSlackMessage,
+} from "@/lib/slack/messages/cs-notifications";
 
 function verifyWebhookSignature(
   signature: string,
@@ -214,6 +218,18 @@ export async function POST(request: NextRequest) {
           },
         ],
       });
+    }
+
+    if (event.event === "order.reminder_due") {
+      await slackClient.chat.postMessage(
+        buildOrderReminderSlackMessage(event.data, env.SLACK_CHANNEL_OPERATION)
+      );
+    }
+
+    if (event.event === "alimtalk.daily_summary") {
+      await slackClient.chat.postMessage(
+        buildAlimtalkDailySummarySlackMessage(event.data, env.SLACK_CHANNEL_OPERATION)
+      );
     }
 
     if (event.event === "inventory.updated") {
