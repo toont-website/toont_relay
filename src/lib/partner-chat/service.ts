@@ -3,6 +3,7 @@ import type {
   PartnerChatConversationPayload,
   PartnerChatInquiryInput,
   PartnerChatMessagePayload,
+  PartnerChatPartnerType,
 } from "@/lib/partner-chat/types";
 
 export function makeCustomerLabel(params: { company: string; contactName: string }) {
@@ -162,6 +163,8 @@ export async function createAgentPartnerChatMessage(params: {
   return {
     customerLabel: makeCustomerLabel(conversation),
     slackThreadTs: params.threadTs ?? conversation.slackThreadTs,
+    slackChannelId: conversation.slackChannelId,
+    partnerType: conversation.partnerType as PartnerChatPartnerType,
   };
 }
 

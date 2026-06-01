@@ -68,7 +68,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: input.error }, { status: 400 });
   }
 
-  const partnerChatEnv = getPartnerChatEnv();
+  let partnerChatEnv: ReturnType<typeof getPartnerChatEnv>;
+  try {
+    partnerChatEnv = getPartnerChatEnv(input.partnerType);
+  } catch {
+    return NextResponse.json(
+      { error: "Partner chat relay is not configured" },
+      { status: 503 }
+    );
+  }
   const slackClient = getSlackClient();
 
   try {

@@ -173,11 +173,12 @@ export async function executePartnerChatReply(payload: SlackPartnerChatPayload) 
   if ("response_action" in parsed) return parsed;
 
   const result = await createAgentPartnerChatMessage(parsed);
-  const partnerChatEnv = getPartnerChatEnv();
+  const slackChannelId =
+    result.slackChannelId ?? getPartnerChatEnv(result.partnerType).slackChannelId;
   const slackClient = getSlackClient();
 
   await slackClient.chat.postMessage({
-    channel: partnerChatEnv.slackChannelId,
+    channel: slackChannelId,
     thread_ts: parsed.threadTs ?? result.slackThreadTs ?? undefined,
     ...buildPartnerChatAgentSentMessage({
       customerLabel: result.customerLabel,

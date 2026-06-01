@@ -7,6 +7,7 @@ import {
   listPartnerChatMessages,
 } from "@/lib/partner-chat/service";
 import { buildPartnerChatCustomerFollowUpMessage } from "@/lib/slack/messages/partner-chat";
+import type { PartnerChatPartnerType } from "@/lib/partner-chat/types";
 
 function clean(value: unknown, maxLength: number) {
   return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
@@ -66,10 +67,12 @@ export async function POST(request: NextRequest) {
 
   if (result.conversation.slackThreadTs) {
     try {
-      const partnerChatEnv = getPartnerChatEnv();
+      const slackChannelId =
+        result.conversation.slackChannelId ??
+        getPartnerChatEnv(result.conversation.partnerType as PartnerChatPartnerType).slackChannelId;
       const slackClient = getSlackClient();
       await slackClient.chat.postMessage({
-        channel: partnerChatEnv.slackChannelId,
+        channel: slackChannelId,
         thread_ts: result.conversation.slackThreadTs,
         ...buildPartnerChatCustomerFollowUpMessage({
           conversationId,
