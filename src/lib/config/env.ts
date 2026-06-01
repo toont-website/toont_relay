@@ -5,6 +5,8 @@ const envSchema = z.object({
   SLACK_SIGNING_SECRET: z.string().min(1),
   SLACK_CHANNEL_CS_SMS: z.string().startsWith("C"),
   SLACK_CHANNEL_ALERT: z.string().startsWith("C"),
+  SLACK_CHANNEL_PARTNER_CHAT: z.string().startsWith("C").optional(),
+  PARTNER_CHAT_WEBHOOK_SECRET: z.string().min(16).optional(),
   SMS_GATEWAY_URL: z.string().url(),
   SMS_GATEWAY_USERNAME: z.string().min(1),
   SMS_GATEWAY_PASSWORD: z.string().min(1),
