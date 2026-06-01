@@ -25,6 +25,46 @@ model MessageLog {
   @@index([phoneNumber, slackThreadTs, createdAt])
 }
 
+model PartnerChatConversation {
+  id               String   @id @default(cuid())
+  partnerType      String
+  company          String
+  identifier       String
+  contactName      String
+  email            String
+  phone            String
+  inquiryType      String
+  status           String   @default("open")
+  visitorSessionId String?
+  slackChannelId   String?
+  slackMessageTs   String?
+  slackThreadTs    String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  messages PartnerChatMessage[]
+
+  @@index([status])
+  @@index([visitorSessionId])
+  @@index([createdAt])
+}
+
+model PartnerChatMessage {
+  id             String   @id @default(cuid())
+  conversationId String
+  direction      String   // "customer" | "agent" | "system"
+  message        String   @db.Text
+  slackActionId  String?  @unique
+  slackMessageTs String?
+  slackUserId    String?
+  createdAt      DateTime @default(now())
+
+  conversation PartnerChatConversation @relation(fields: [conversationId], references: [id])
+
+  @@index([conversationId, createdAt])
+  @@index([direction])
+}
+
 model HealthCheckLog {
   id             String    @id @default(cuid())
   mysqlStatus    String    // "ok" | "error"

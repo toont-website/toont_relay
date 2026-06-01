@@ -45,6 +45,10 @@ import {
   openProfileEditModal,
   handleProfileEditSubmit,
 } from "@/lib/slack/commands/profile";
+import {
+  executePartnerChatReply,
+  handleReplyPartnerChat,
+} from "@/lib/slack/actions/partner-chat-reply";
 
 export async function POST(request: NextRequest) {
   const result = await parseSlackRequest(request);
@@ -130,6 +134,11 @@ export async function POST(request: NextRequest) {
       if (response) return NextResponse.json(response);
       return new NextResponse(null, { status: 200 });
     }
+    if (callbackId === "partner_chat_reply_modal") {
+      const response = await executePartnerChatReply(payload);
+      if (response) return NextResponse.json(response);
+      return new NextResponse(null, { status: 200 });
+    }
     if (callbackId === "sms_send_modal") {
       const result = await validateSmsSend(payload);
       if ("response_action" in result) {
@@ -176,6 +185,10 @@ export async function POST(request: NextRequest) {
     }
     if (actionId === "reply_sms") {
       await handleReplySms(payload);
+      return new NextResponse(null, { status: 200 });
+    }
+    if (actionId === "reply_partner_chat") {
+      await handleReplyPartnerChat(payload);
       return new NextResponse(null, { status: 200 });
     }
     if (actionId === "retry_sms") {
@@ -447,7 +460,7 @@ export async function POST(request: NextRequest) {
           const ordersResult = await client.getOrders({ status: "pending", limit: "50" });
           const unassigned = (ordersResult.data ?? []).filter((o) => !o.currentStageId);
 
-          const blocks: any[] = [
+          const blocks: Array<Record<string, unknown>> = [
             { type: "header", text: { type: "plain_text", text: "⚪ 미배정 주문 상세" } },
             { type: "divider" },
           ];

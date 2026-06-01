@@ -26,6 +26,10 @@ SLACK_BOT_TOKEN=xoxb-...
 SLACK_SIGNING_SECRET=...
 SLACK_CHANNEL_CS_SMS=C0ALP2LKTR8
 SLACK_CHANNEL_ALERT=C0XXXXXXX        # 장애 알림 채널
+SLACK_CHANNEL_PARTNER_CHAT=C0XXXXXXX # 파트너 채팅 fallback 채널
+SLACK_CHANNEL_PARTNER_CHAT_EXPERT=C0XXXXXXX   # 건축 설계자 문의: 데모-알림
+SLACK_CHANNEL_PARTNER_CHAT_SUPPLIER=C0XXXXXXX # 건축 자재 업체 문의: 공급사-알림
+PARTNER_CHAT_WEBHOOK_SECRET=...      # demo 서버 → relay 파트너 채팅 API 인증 토큰
 
 # SMS Gateway API (폰 앱 연결 후 자동 생성되는 크레덴셜)
 SMS_GATEWAY_URL=http://sms-backend:3080
@@ -133,6 +137,16 @@ docker compose logs sms-backend --tail 10
 | Slash Commands (`/sms`, `/contact`) | `https://relay.toont.co.kr/api/slack/command` |
 | Interactivity → Request URL | `https://relay.toont.co.kr/api/slack/action` |
 | Interactivity → Options Load URL | `https://relay.toont.co.kr/api/slack/options` |
+
+파트너 채팅은 기존 Slack App의 Interactivity URL을 그대로 사용하되, 실제 문의 접수는
+`POST /api/webhook/partner-chat`, 추가 고객 메시지는
+`POST /api/webhook/partner-chat/messages`, 대화 조회는
+`GET /api/webhook/partner-chat/messages?conversationId=...`로 분리되어 있습니다.
+이 API들은 `Authorization: Bearer $PARTNER_CHAT_WEBHOOK_SECRET` 헤더가 필요합니다.
+최초 문의 채널은 파트너 유형별로 분리됩니다. `expert`는
+`SLACK_CHANNEL_PARTNER_CHAT_EXPERT`, `supplier`는
+`SLACK_CHANNEL_PARTNER_CHAT_SUPPLIER`를 우선 사용하며, 유형별 채널이 없으면
+기존 `SLACK_CHANNEL_PARTNER_CHAT`으로 fallback합니다.
 
 ## 운영
 
