@@ -1,6 +1,7 @@
 import { getSlackClient } from "@/lib/slack/client";
 import { getPartnerChatEnv } from "@/lib/partner-chat/auth";
 import {
+  closePartnerChatConversation,
   createAgentPartnerChatMessage,
   getPartnerChatConversationForSlack,
   listPartnerChatMessages,
@@ -21,8 +22,17 @@ type ReplySubmission =
       errors: Record<string, string>;
     };
 
+type CompleteAction =
+  | {
+      conversationId: string;
+      slackUserId: string;
+      slackActionId: string;
+      threadTs: string | null;
+    }
+  | null;
+
 type SlackPartnerChatPayload = {
-  actions?: Array<{ value?: string }>;
+  actions?: Array<{ value?: string; action_ts?: string }>;
   trigger_id?: string;
   user: { id: string };
   view?: {
@@ -134,6 +144,55 @@ export function parsePartnerChatReplySubmission(payload: SlackPartnerChatPayload
   };
 }
 
+export function parsePartnerChatCompleteAction(payload: SlackPartnerChatPayload): CompleteAction {
+  const action = payload.actions?.[0];
+  if (!action?.value) return null;
+
+  let value: { conversationId?: string; threadTs?: string | null };
+  try {
+    value = JSON.parse(action.value);
+  } catch {
+    return null;
+  }
+
+  if (!value.conversationId) return null;
+
+  return {
+    conversationId: value.conversationId,
+    slackUserId: payload.user.id,
+    slackActionId: `partner_chat_complete_${value.conversationId}_${payload.user.id}`,
+    threadTs: value.threadTs ?? null,
+  };
+}
+
+export function buildPartnerChatCompletedMessage(params: {
+  customerLabel: string;
+  senderUserId: string;
+  closingMessage: string;
+}) {
+  return {
+    text: `✅ ${params.customerLabel} 파트너 채팅 종료`,
+    attachments: [
+      {
+        color: "#10B981",
+        blocks: [
+          {
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: `✅ <@${params.senderUserId}> 님이 ${params.customerLabel} 님과의 대화를 완료했어요.`,
+            },
+          },
+          {
+            type: "section",
+            text: { type: "mrkdwn", text: params.closingMessage },
+          },
+        ],
+      },
+    ],
+  };
+}
+
 export async function handleReplyPartnerChat(payload: SlackPartnerChatPayload) {
   const action = payload.actions?.[0];
   const triggerId = payload.trigger_id;
@@ -188,4 +247,26 @@ export async function executePartnerChatReply(payload: SlackPartnerChatPayload) 
   });
 
   return null;
+}
+
+export async function handleCompletePartnerChat(payload: SlackPartnerChatPayload) {
+  const parsed = parsePartnerChatCompleteAction(payload);
+  if (!parsed) return;
+
+  const result = await closePartnerChatConversation(parsed);
+  if (!result) return;
+
+  const slackChannelId =
+    result.slackChannelId ?? getPartnerChatEnv(result.partnerType).slackChannelId;
+  const slackClient = getSlackClient();
+
+  await slackClient.chat.postMessage({
+    channel: slackChannelId,
+    thread_ts: parsed.threadTs ?? result.slackThreadTs ?? undefined,
+    ...buildPartnerChatCompletedMessage({
+      customerLabel: result.customerLabel,
+      senderUserId: parsed.slackUserId,
+      closingMessage: result.closingMessage,
+    }),
+  });
 }

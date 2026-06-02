@@ -4,7 +4,7 @@ import { getSlackClient } from "@/lib/slack/client";
 import { getPartnerChatEnv, verifyPartnerChatRequest } from "@/lib/partner-chat/auth";
 import {
   appendCustomerPartnerChatMessage,
-  listPartnerChatMessages,
+  getPartnerChatThread,
 } from "@/lib/partner-chat/service";
 import { buildPartnerChatCustomerFollowUpMessage } from "@/lib/slack/messages/partner-chat";
 import type { PartnerChatPartnerType } from "@/lib/partner-chat/types";
@@ -25,12 +25,15 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "conversationId is required" }, { status: 400 });
   }
 
-  const messages = await listPartnerChatMessages({
+  const thread = await getPartnerChatThread({
     conversationId,
     visitorSessionId,
   });
+  if (!thread) {
+    return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
+  }
 
-  return NextResponse.json({ messages });
+  return NextResponse.json(thread);
 }
 
 export async function POST(request: NextRequest) {
@@ -79,6 +82,7 @@ export async function POST(request: NextRequest) {
           customerLabel: result.customerLabel,
           message,
           createdAt: result.message.createdAt,
+          threadTs: result.conversation.slackThreadTs,
         }),
       });
     } catch (error) {

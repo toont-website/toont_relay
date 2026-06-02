@@ -47,6 +47,7 @@ import {
 } from "@/lib/slack/commands/profile";
 import {
   executePartnerChatReply,
+  handleCompletePartnerChat,
   handleReplyPartnerChat,
 } from "@/lib/slack/actions/partner-chat-reply";
 
@@ -189,6 +190,16 @@ export async function POST(request: NextRequest) {
     }
     if (actionId === "reply_partner_chat") {
       await handleReplyPartnerChat(payload);
+      return new NextResponse(null, { status: 200 });
+    }
+    if (actionId === "complete_partner_chat") {
+      after(async () => {
+        try {
+          await handleCompletePartnerChat(payload);
+        } catch (error) {
+          logger.error({ error }, "파트너 채팅 대화 완료 처리 실패");
+        }
+      });
       return new NextResponse(null, { status: 200 });
     }
     if (actionId === "retry_sms") {

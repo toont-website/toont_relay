@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { buildPartnerChatInquiryMessage } from "../partner-chat";
+import {
+  buildPartnerChatCustomerFollowUpMessage,
+  buildPartnerChatInquiryMessage,
+} from "../partner-chat";
 
 type SlackBlock = {
   type: string;
@@ -38,12 +41,42 @@ describe("buildPartnerChatInquiryMessage", () => {
 
     const actionsBlock = blocks.find((block) => block.type === "actions");
     expect(actionsBlock).toBeTruthy();
-    const actionElement = actionsBlock?.elements?.[0];
-    expect(actionElement?.action_id).toBe("reply_partner_chat");
-    expect(actionElement?.text?.text).toBe("답장하기");
-    expect(JSON.parse(actionElement?.value ?? "{}")).toEqual({
+    expect(actionsBlock?.elements?.map((element) => element.action_id)).toEqual([
+      "reply_partner_chat",
+      "complete_partner_chat",
+    ]);
+    expect(actionsBlock?.elements?.map((element) => element.text?.text)).toEqual([
+      "답장하기",
+      "대화 완료하기",
+    ]);
+    expect(JSON.parse(actionsBlock?.elements?.[0]?.value ?? "{}")).toEqual({
       conversationId: "chat_123",
       threadTs: null,
+    });
+    expect(JSON.parse(actionsBlock?.elements?.[1]?.value ?? "{}")).toEqual({
+      conversationId: "chat_123",
+      threadTs: null,
+    });
+  });
+
+  it("고객 후속 메시지도 답장과 대화 완료 버튼을 포함한다", () => {
+    const result = buildPartnerChatCustomerFollowUpMessage({
+      conversationId: "chat_123",
+      customerLabel: "오파크 김툰트",
+      message: "추가 자료를 전달드립니다.",
+      createdAt: new Date("2026-06-01T06:10:00.000Z"),
+      threadTs: "1717223040.000000",
+    });
+
+    const blocks = result.attachments[0]!.blocks as SlackBlock[];
+    const actionsBlock = blocks.find((block) => block.type === "actions");
+    expect(actionsBlock?.elements?.map((element) => element.action_id)).toEqual([
+      "reply_partner_chat",
+      "complete_partner_chat",
+    ]);
+    expect(JSON.parse(actionsBlock?.elements?.[1]?.value ?? "{}")).toEqual({
+      conversationId: "chat_123",
+      threadTs: "1717223040.000000",
     });
   });
 });

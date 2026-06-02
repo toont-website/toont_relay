@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildPartnerChatCompletedMessage,
   buildPartnerChatReplyModalView,
+  parsePartnerChatCompleteAction,
   parsePartnerChatReplySubmission,
 } from "../partner-chat-reply";
 
@@ -81,5 +83,38 @@ describe("partner chat Slack reply action helpers", () => {
       response_action: "errors",
       errors: { message_block: "답장 내용을 입력해주세요" },
     });
+  });
+
+  it("대화 완료 버튼 payload에서 대화 id와 스레드 ts를 파싱한다", () => {
+    const parsed = parsePartnerChatCompleteAction({
+      user: { id: "U123" },
+      actions: [
+        {
+          value: JSON.stringify({
+            conversationId: "chat_123",
+            threadTs: "1717223040.000000",
+          }),
+        },
+      ],
+    });
+
+    expect(parsed).toEqual({
+      conversationId: "chat_123",
+      slackUserId: "U123",
+      slackActionId: "partner_chat_complete_chat_123_U123",
+      threadTs: "1717223040.000000",
+    });
+  });
+
+  it("대화 완료 Slack 스레드 안내 메시지를 만든다", () => {
+    const message = buildPartnerChatCompletedMessage({
+      customerLabel: "오파크 김툰트",
+      senderUserId: "U123",
+      closingMessage: "상담이 종료되었습니다.",
+    });
+
+    expect(message.text).toBe("✅ 오파크 김툰트 파트너 채팅 종료");
+    expect(JSON.stringify(message.attachments)).toContain("<@U123>");
+    expect(JSON.stringify(message.attachments)).toContain("상담이 종료되었습니다.");
   });
 });

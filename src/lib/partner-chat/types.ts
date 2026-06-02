@@ -1,6 +1,10 @@
 export type PartnerChatPartnerType = "expert" | "supplier";
 
 export type PartnerChatDirection = "customer" | "agent" | "system";
+export type PartnerChatStatus = "open" | "closed";
+
+export const DEFAULT_PARTNER_CHAT_CLOSED_MESSAGE =
+  "상담이 종료되었습니다. 문의해주셔서 감사합니다. 추가 문의가 필요하시면 새 채팅을 시작해주세요.";
 
 export interface PartnerChatInquiryInput {
   partnerType: PartnerChatPartnerType;
@@ -26,6 +30,11 @@ export interface PartnerChatMessagePayload {
   message: string;
   createdAt: Date;
   slackUserId?: string | null;
+}
+
+export interface PartnerChatThreadPayload {
+  status: PartnerChatStatus;
+  messages: PartnerChatMessagePayload[];
 }
 
 export const PARTNER_CHAT_TYPE_LABELS: Record<PartnerChatPartnerType, string> = {

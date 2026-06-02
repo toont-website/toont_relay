@@ -19,6 +19,43 @@ function formatKst(value: Date): string {
   });
 }
 
+function buildPartnerChatActionValue(params: {
+  conversationId: string;
+  threadTs?: string | null;
+}) {
+  return JSON.stringify({
+    conversationId: params.conversationId,
+    threadTs: params.threadTs ?? null,
+  });
+}
+
+function buildPartnerChatActions(params: {
+  conversationId: string;
+  threadTs?: string | null;
+}) {
+  const value = buildPartnerChatActionValue(params);
+
+  return {
+    type: "actions",
+    elements: [
+      {
+        type: "button",
+        text: { type: "plain_text", text: "답장하기" },
+        action_id: "reply_partner_chat",
+        style: "primary",
+        value,
+      },
+      {
+        type: "button",
+        text: { type: "plain_text", text: "대화 완료하기" },
+        action_id: "complete_partner_chat",
+        style: "danger",
+        value,
+      },
+    ],
+  };
+}
+
 export function buildPartnerChatInquiryMessage(params: PartnerChatConversationPayload) {
   const partnerTypeLabel = PARTNER_CHAT_TYPE_LABELS[params.partnerType];
   const customerLabel = `${params.company} / ${params.contactName}`;
@@ -68,21 +105,10 @@ export function buildPartnerChatInquiryMessage(params: PartnerChatConversationPa
               },
             ],
           },
-          {
-            type: "actions",
-            elements: [
-              {
-                type: "button",
-                text: { type: "plain_text", text: "답장하기" },
-                action_id: "reply_partner_chat",
-                style: "primary",
-                value: JSON.stringify({
-                  conversationId: params.conversationId,
-                  threadTs: params.threadTs ?? null,
-                }),
-              },
-            ],
-          },
+          buildPartnerChatActions({
+            conversationId: params.conversationId,
+            threadTs: params.threadTs,
+          }),
         ],
       },
     ],
@@ -94,6 +120,7 @@ export function buildPartnerChatCustomerFollowUpMessage(params: {
   customerLabel: string;
   message: string;
   createdAt: Date;
+  threadTs?: string | null;
 }) {
   return {
     text: `💬 ${params.customerLabel} 추가 메시지`,
@@ -117,6 +144,10 @@ export function buildPartnerChatCustomerFollowUpMessage(params: {
               },
             ],
           },
+          buildPartnerChatActions({
+            conversationId: params.conversationId,
+            threadTs: params.threadTs,
+          }),
         ],
       },
     ],
