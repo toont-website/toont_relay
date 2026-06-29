@@ -190,12 +190,16 @@ docker compose exec mysql mysql -u toont -p'Toont2026!' --default-character-set=
 
 ### SSL 인증서 갱신
 
-certbot이 자동 갱신하지만, 수동으로 하려면:
+certbot은 host의 `/var/www/certbot` webroot로 자동 갱신한다. 수동으로 확인하려면:
 
 ```bash
-docker compose stop nginx
-sudo certbot renew
-docker compose start nginx
+sudo certbot renew --dry-run
+```
+
+갱신 후 nginx가 새 인증서를 읽어야 하면:
+
+```bash
+docker compose exec nginx nginx -s reload
 ```
 
 ### 로그 확인

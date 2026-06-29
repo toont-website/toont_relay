@@ -102,6 +102,7 @@ services:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /var/www/certbot:/var/www/certbot:ro
     depends_on:
       - app
       - sms-backend
@@ -138,8 +139,6 @@ configs:
 volumes:
   mysql_data:
   sms_gateway_data:
-  certbot_webroot:
-  certbot_certs:
 
 networks:
   internal:
