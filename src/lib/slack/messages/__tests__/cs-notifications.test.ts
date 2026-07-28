@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildAlimtalkDailySummarySlackMessage,
+  buildAlimtalkSendFailureSlackMessage,
   buildOrderReminderSlackMessage,
   resolveSlackChannelId,
 } from "../cs-notifications";
@@ -47,8 +48,25 @@ describe("CS notification Slack messages", () => {
     }, "CDEFAULT");
 
     expect(message.channel).toBe("CDEFAULT");
-    expect(message.text).toBe("전날 자동 알림톡 발송 요약: 1건");
+    expect(message.text).toBe("전날 알림톡 발송 요약: 1건");
     expect(message.attachments[0].blocks[0].text.text).toContain("IN-006");
     expect(message.attachments[0].blocks[1].elements[0].text.text).toBe("발송 이력 보기");
+  });
+
+  it("알림톡 실패 메시지는 실패 원인과 이력 링크를 포함", () => {
+    const message = buildAlimtalkSendFailureSlackMessage({
+      channelId: "C012ABCDEF",
+      operationCode: "IN-012",
+      operationName: "당일 배송 안내",
+      errorMessage: "SENDON_REQUEST_FAILED:HTTP_500",
+      occurredAt: "2026-07-28T01:00:00.000Z",
+      logsUrl: "https://cs.toont.co.kr/?view=alimtalk-logs&status=failed",
+      order: { id: "order-1", orderId: "SHOP-1", customerName: "홍길동" },
+    }, "CDEFAULT");
+
+    expect(message.channel).toBe("C012ABCDEF");
+    expect(message.text).toContain("IN-012");
+    expect(message.attachments[0].blocks[0].text.text).toContain("SENDON_REQUEST_FAILED");
+    expect(message.attachments[0].blocks[1].elements[0].text.text).toBe("실패 이력 보기");
   });
 });

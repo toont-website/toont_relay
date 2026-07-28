@@ -328,6 +328,10 @@ export interface CsToolWebhookData extends CsToolWebhookRecord {
   totalSent?: number;
   logsUrl?: string;
   items?: CsToolWebhookRecord[];
+  operationCode?: string;
+  operationName?: string;
+  errorMessage?: string;
+  occurredAt?: string;
 }
 
 // 웹훅 이벤트
@@ -340,6 +344,7 @@ export interface CsToolWebhookEvent {
     | "order.status_changed"
     | "order.reminder_due"
     | "alimtalk.daily_summary"
+    | "alimtalk.send_failed"
     | "inventory.updated"
     | "inventory.low_stock";
   data: CsToolWebhookData;

@@ -32,6 +32,20 @@ type AlimtalkDailySummaryPayload = {
   }>;
 };
 
+type AlimtalkSendFailurePayload = {
+  channelId?: unknown;
+  operationCode?: string;
+  operationName?: string;
+  errorMessage?: string;
+  occurredAt?: string;
+  logsUrl?: string;
+  order?: {
+    id?: string;
+    orderId?: string | null;
+    customerName?: string;
+  };
+};
+
 export function resolveSlackChannelId(channelId: unknown, fallbackChannelId: string): string {
   return typeof channelId === "string" && validChannelIdPattern.test(channelId)
     ? channelId
@@ -80,7 +94,7 @@ export function buildAlimtalkDailySummarySlackMessage(data: AlimtalkDailySummary
   const channel = resolveSlackChannelId(data.channelId, fallbackChannelId);
   const items = Array.isArray(data.items) ? data.items : [];
   const lines = [
-    `*전날 자동 알림톡 발송 요약*`,
+    `*전날 알림톡 발송 요약*`,
     "",
     `*기준일:* ${data.summaryDate ?? "-"}`,
     `*총 발송:* ${Number(data.totalSent ?? 0)}건`,
@@ -109,10 +123,54 @@ export function buildAlimtalkDailySummarySlackMessage(data: AlimtalkDailySummary
 
   return {
     channel,
-    text: `전날 자동 알림톡 발송 요약: ${Number(data.totalSent ?? 0)}건`,
+    text: `전날 알림톡 발송 요약: ${Number(data.totalSent ?? 0)}건`,
     attachments: [
       {
         color: "#36C759",
+        blocks,
+      },
+    ],
+  };
+}
+
+export function buildAlimtalkSendFailureSlackMessage(data: AlimtalkSendFailurePayload, fallbackChannelId: string) {
+  const channel = resolveSlackChannelId(data.channelId, fallbackChannelId);
+  const order = data.order ?? {};
+  const lines = [
+    `🚨 *알림톡 발송 실패*`,
+    "",
+    `*알림톡:* ${data.operationCode ?? "-"} ${data.operationName ?? ""}`.trim(),
+    `*주문:* ${order.orderId ?? order.id ?? "-"}`,
+    `*고객:* ${order.customerName ?? "-"}`,
+    `*실패 원인:* ${data.errorMessage ?? "알 수 없는 오류"}`,
+    `*발생 시각:* ${data.occurredAt ?? "-"}`,
+  ];
+  const blocks: Array<Record<string, unknown>> = [
+    {
+      type: "section",
+      text: { type: "mrkdwn", text: lines.join("\n") },
+    },
+  ];
+  if (typeof data.logsUrl === "string" && data.logsUrl.startsWith("https://")) {
+    blocks.push({
+      type: "actions",
+      elements: [
+        {
+          type: "button",
+          text: { type: "plain_text", text: "실패 이력 보기" },
+          url: data.logsUrl,
+          style: "danger",
+        },
+      ],
+    });
+  }
+
+  return {
+    channel,
+    text: `🚨 알림톡 발송 실패: ${data.operationCode ?? "-"} · ${order.customerName ?? "주문"}`,
+    attachments: [
+      {
+        color: "#FF3B30",
         blocks,
       },
     ],

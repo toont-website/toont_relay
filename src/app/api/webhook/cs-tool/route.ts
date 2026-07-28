@@ -7,6 +7,7 @@ import { displayPhoneNumber } from "@/lib/utils/phone";
 import type { CsToolWebhookEvent } from "@/lib/cs-tool/types";
 import {
   buildAlimtalkDailySummarySlackMessage,
+  buildAlimtalkSendFailureSlackMessage,
   buildOrderReminderSlackMessage,
 } from "@/lib/slack/messages/cs-notifications";
 
@@ -229,6 +230,12 @@ export async function POST(request: NextRequest) {
     if (event.event === "alimtalk.daily_summary") {
       await slackClient.chat.postMessage(
         buildAlimtalkDailySummarySlackMessage(event.data, env.SLACK_CHANNEL_OPERATION)
+      );
+    }
+
+    if (event.event === "alimtalk.send_failed") {
+      await slackClient.chat.postMessage(
+        buildAlimtalkSendFailureSlackMessage(event.data, env.SLACK_CHANNEL_OPERATION)
       );
     }
 
