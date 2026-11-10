@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { getEnv } from "@/lib/config/env";
 import { getSlackClient } from "@/lib/slack/client";
+import { RENTAL_ISSUE_EVENT, handleRentalIssueReported, rentalIssuePayload, webhookOrigin } from "@/lib/rental-issue/relay";
 import { logger } from "@/lib/logger";
 import { displayPhoneNumber } from "@/lib/utils/phone";
 import type { CsToolWebhookEvent } from "@/lib/cs-tool/types";
@@ -47,6 +48,20 @@ export async function POST(request: NextRequest) {
   const signature = request.headers.get("x-webhook-signature") ?? "";
   const timestamp = request.headers.get("x-webhook-timestamp") ?? "";
   const eventType = request.headers.get("x-webhook-event") ?? "";
+
+  // 렌탈 이상 접수: 운영 CS와 스테이징 CS 모두 받는다. 스테이징은 시험 채널에만 올리고 답도 스테이징으로 보낸다.
+  if (eventType === RENTAL_ISSUE_EVENT) {
+    const origin = webhookOrigin(signature, timestamp, body, env);
+    if (!origin) {
+      logger.warn({ eventType }, "CS Tool 웹훅 서명 검증 실패");
+      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+    }
+    const parsed = rentalIssuePayload.safeParse((JSON.parse(body) as { data?: unknown }).data);
+    if (!parsed.success) return NextResponse.json({ ok: false, error: "INVALID_PAYLOAD" }, { status: 400 });
+    const handled = await handleRentalIssueReported(parsed.data, origin, { slack: getSlackClient(), env: env });
+    logger.info({ origin, messageId: parsed.data.message.id, result: handled.body }, "렌탈 이상 접수 처리");
+    return NextResponse.json(handled.body, { status: handled.status });
+  }
 
   if (!verifyWebhookSignature(signature, timestamp, body, env.CS_TOOL_WEBHOOK_SECRET)) {
     logger.warn({ eventType }, "CS Tool 웹훅 서명 검증 실패");
