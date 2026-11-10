@@ -39,7 +39,11 @@ export async function parseSlackRequest(
   const timestamp = request.headers.get("x-slack-request-timestamp") ?? "";
   const signature = request.headers.get("x-slack-signature") ?? "";
 
-  if (!verifySlackSignature(env.SLACK_SIGNING_SECRET, signature, timestamp, body)) {
+  // 새 슬랙 앱으로 옮기는 동안에는 예전 앱(SLACK_SIGNING_SECRET_LEGACY)에서 온 요청도 받는다(예전 글의 버튼·명령).
+  const verified =
+    verifySlackSignature(env.SLACK_SIGNING_SECRET, signature, timestamp, body) ||
+    (!!env.SLACK_SIGNING_SECRET_LEGACY && verifySlackSignature(env.SLACK_SIGNING_SECRET_LEGACY, signature, timestamp, body));
+  if (!verified) {
     logger.warn("Slack 서명 검증 실패");
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
