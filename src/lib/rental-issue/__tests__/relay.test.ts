@@ -5,7 +5,9 @@ import {
   buildRentalIssueMessage,
   deliverReplyAndNotify,
   forgetPostedForTest,
+  handleRentalIssueReplied,
   handleRentalIssueReported,
+  rentalIssueRepliedPayload,
   parseReplyMeta,
   sendReplyToCs,
   webhookOrigin,
@@ -133,6 +135,26 @@ describe("answering from Slack", () => {
     await deliverReplyAndNotify({ meta: { o: "ORD1", i: "m1", r: "res", e: "p", c: "CPROD", t: "1.1" }, body: "x", viewId: "V2" },
       { slack: s.client, env, fetch: (async () => Response.json({ success: false, error: { message: "쇼핑몰에서 이 접수를 찾지 못했습니다." } }, { status: 404 })) as never });
     expect(String((s.posts[1].blocks as { text: { text: string } }[])[0].text.text)).toContain("쇼핑몰에서 이 접수를 찾지 못했습니다.");
+  });
+});
+
+describe("answering from the CS screen", () => {
+  const replied = { thread: { channel: "CPROD", ts: "1.1" }, orderId: "ORD1", staffName: "김담당", body: "교체 <기사>님 보낼게요 @here", repliedAt: "2026-12-01T02:00:00.000Z" };
+  it("notes in the report's thread who answered and what, as plain text", async () => {
+    const s = slack();
+    const out = await handleRentalIssueReplied(rentalIssueRepliedPayload.parse(replied), "production", { slack: s.client, env });
+    expect(out).toEqual({ status: 200, body: { ok: true, ts: "111.222" } });
+    expect(s.posts[0]).toMatchObject({ channel: "CPROD", thread_ts: "1.1" });
+    const text = String((s.posts[0].blocks as { text: { text: string } }[])[0].text.text);
+    expect(text).toContain("김담당님이 CS 화면에서 고객에게 답했습니다");
+    expect(text).toContain("&lt;기사&gt;");
+    expect(text).toContain("@​here");
+  });
+  it("a staging answer goes only to the test channel, whatever channel it names", async () => {
+    const s = slack();
+    await handleRentalIssueReplied(rentalIssueRepliedPayload.parse(replied), "staging", { slack: s.client, env });
+    expect(s.posts[0]).toMatchObject({ channel: "CTEST", thread_ts: "1.1" });
+    expect(String(s.posts[0].text)).toContain("[스테이징 시험]");
   });
 });
 
