@@ -65,6 +65,7 @@ describe("posting a report", () => {
     expect(out).toEqual({ status: 200, body: { ok: true, channel: "CPROD", ts: "111.222", filesDone: 1 } });
     const json = JSON.stringify(s.posts[0].blocks);
     expect(json).toContain("조명 &lt;하나&gt;가 &amp; 안 켜져요");
+    expect(buildRentalIssueMessage(payload({ message: { id: "m9", issueId: "m9", body: "@here 와 @channel 봐 주세요", createdAt: "2026-12-01T01:00:00.000Z", followUp: false } }), "production").blocks.map((b) => JSON.stringify(b)).join()).not.toMatch(/@(here|channel)\b/);
     expect(json).toContain(RENTAL_ISSUE_REPLY_ACTION);
     expect(s.uploads[0]).toMatchObject({ channel_id: "CPROD", thread_ts: "111.222", filename: "조명.jpg" });
   });
@@ -132,5 +133,16 @@ describe("answering from Slack", () => {
     await deliverReplyAndNotify({ meta: { o: "ORD1", i: "m1", r: "res", e: "p", c: "CPROD", t: "1.1" }, body: "x", viewId: "V2" },
       { slack: s.client, env, fetch: (async () => Response.json({ success: false, error: { message: "쇼핑몰에서 이 접수를 찾지 못했습니다." } }, { status: 404 })) as never });
     expect(String((s.posts[1].blocks as { text: { text: string } }[])[0].text.text)).toContain("쇼핑몰에서 이 접수를 찾지 못했습니다.");
+  });
+});
+
+import { verifySlackSignature } from "@/lib/slack/verify";
+describe("moving to a new Slack app", () => {
+  it("a request signed with either the new or the old app secret verifies with its own secret only", () => {
+    const ts = String(Math.floor(Date.now() / 1000)), body = "payload=x";
+    const sig = (secret: string) => "v0=" + createHmac("sha256", secret).update(`v0:${ts}:${body}`).digest("hex");
+    expect(verifySlackSignature("new", sig("new"), ts, body)).toBe(true);
+    expect(verifySlackSignature("new", sig("old"), ts, body)).toBe(false);
+    expect(verifySlackSignature("old", sig("old"), ts, body)).toBe(true);
   });
 });

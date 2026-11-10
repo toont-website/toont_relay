@@ -60,7 +60,10 @@ export function parseReplyMeta(value: unknown): ReplyMeta | null {
 }
 
 /** 고객 글이 슬랙 링크·멘션이 되지 않게 한다. */
-export const slackEscape = (text: string) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+export const slackEscape = (text: string) =>
+  text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    // 고객 글의 @here·@channel·@everyone이 채널 전체 호출이 되지 않게 보이지 않는 글자를 끼운다.
+    .replace(/@(here|channel|everyone)\b/gi, "@\u200b$1");
 const seoul = (iso: string) => new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(iso));
 
 export function buildRentalIssueMessage(data: RentalIssuePayload, origin: RentalIssueOrigin): { text: string; blocks: unknown[] } {

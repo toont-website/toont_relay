@@ -3,6 +3,8 @@ import { z } from "zod";
 const envSchema = z.object({
   SLACK_BOT_TOKEN: z.string().startsWith("xoxb-"),
   SLACK_SIGNING_SECRET: z.string().min(1),
+  // 슬랙 앱을 바꾸는 동안 예전 앱의 서명 비밀값(옮긴 뒤 지운다)
+  SLACK_SIGNING_SECRET_LEGACY: z.string().min(1).optional(),
   SLACK_CHANNEL_CS_SMS: z.string().startsWith("C"),
   SLACK_CHANNEL_ALERT: z.string().startsWith("C"),
   SLACK_CHANNEL_PARTNER_CHAT: z.string().startsWith("C").optional(),
