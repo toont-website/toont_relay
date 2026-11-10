@@ -24,6 +24,11 @@ const envSchema = z.object({
   SLACK_CHANNEL_OPERATION: z.string().startsWith("C"),
   CRON_SECRET: z.string().min(1),
   HEALTH_CHECK_DEVICE_THRESHOLD_MINUTES: z.coerce.number().int().min(1).default(30),
+  // 스테이징 CS(렌탈 이상 접수 시험): 서명 비밀값, 답을 보낼 CS API, 시험 채널. 없으면 스테이징 사건은 받지 않는다.
+  CS_STAGING_WEBHOOK_SECRET: z.string().min(1).optional(),
+  CS_STAGING_API_URL: z.string().url().optional(),
+  CS_STAGING_API_KEY: z.string().min(1).optional(),
+  SLACK_CHANNEL_STAGING_TEST: z.string().startsWith("C").optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

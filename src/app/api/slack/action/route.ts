@@ -1,6 +1,18 @@
 import { after } from "next/server";
 import { NextRequest, NextResponse } from "next/server";
 import { parseSlackRequest } from "@/lib/slack/verify";
+import { getSlackClient } from "@/lib/slack/client";
+import { getEnv } from "@/lib/config/env";
+import {
+  RENTAL_ISSUE_REPLY_ACTION,
+  RENTAL_ISSUE_REPLY_BLOCK,
+  RENTAL_ISSUE_REPLY_CALLBACK,
+  RENTAL_ISSUE_REPLY_INPUT,
+  RENTAL_ISSUE_REPLY_MAX,
+  buildReplyModal,
+  deliverReplyAndNotify,
+  parseReplyMeta,
+} from "@/lib/rental-issue/relay";
 import { logger } from "@/lib/logger";
 import { validateSmsSend, executeSmsSend } from "@/lib/slack/actions/sms-send";
 import { handleReplySms, handleRetrySms } from "@/lib/slack/actions/reply-sms";
@@ -60,6 +72,23 @@ export async function POST(request: NextRequest) {
 
   if (payload.type === "view_submission") {
     const callbackId = payload.view?.callback_id;
+    // 렌탈 이상 접수 답변: 창은 바로 닫고 CS로 보내는 일과 결과 알림은 뒤에서 한다.
+    if (callbackId === RENTAL_ISSUE_REPLY_CALLBACK) {
+      const meta = parseReplyMeta(payload.view?.private_metadata);
+      const body = String(payload.view?.state?.values?.[RENTAL_ISSUE_REPLY_BLOCK]?.[RENTAL_ISSUE_REPLY_INPUT]?.value ?? "").trim();
+      if (!meta) return NextResponse.json({ response_action: "errors", errors: { [RENTAL_ISSUE_REPLY_BLOCK]: "접수 정보를 읽지 못했습니다. 글의 [답변하기]를 다시 눌러 주세요." } });
+      if (!body || body.length > RENTAL_ISSUE_REPLY_MAX) return NextResponse.json({ response_action: "errors", errors: { [RENTAL_ISSUE_REPLY_BLOCK]: `답변은 1~${RENTAL_ISSUE_REPLY_MAX}자로 적어 주세요.` } });
+      const viewId = String(payload.view?.id ?? "");
+      const userId = payload.user?.id as string | undefined;
+      after(async () => {
+        try {
+          await deliverReplyAndNotify({ meta, body, viewId, userId }, { slack: getSlackClient(), env: getEnv() });
+        } catch (error) {
+          logger.error({ error }, "렌탈 이상 접수 답변 전달 실패");
+        }
+      });
+      return NextResponse.json({ response_action: "clear" });
+    }
     if (callbackId === "order_add_modal") {
       const result = await validateOrderAdd(payload);
       if ("response_action" in result) {
@@ -150,6 +179,20 @@ export async function POST(request: NextRequest) {
       });
       return new NextResponse(null, { status: 200 });
     }
+  }
+
+  if (payload.type === "block_actions" && payload.actions?.[0]?.action_id === RENTAL_ISSUE_REPLY_ACTION) {
+    const meta = parseReplyMeta(payload.actions[0].value);
+    if (meta && payload.trigger_id) {
+      // 답을 보낸 뒤 알릴 자리: 버튼이 달린 글의 스레드.
+      const threadTs = payload.message?.thread_ts ?? payload.message?.ts;
+      try {
+        await getSlackClient().views.open({ trigger_id: payload.trigger_id, view: buildReplyModal({ ...meta, c: payload.channel?.id, t: threadTs }) as never });
+      } catch (error) {
+        logger.error({ error }, "렌탈 이상 접수 답변 창 열기 실패");
+      }
+    }
+    return new NextResponse(null, { status: 200 });
   }
 
   if (payload.type === "block_actions") {
