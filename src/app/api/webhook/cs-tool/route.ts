@@ -2,7 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { getEnv } from "@/lib/config/env";
 import { getSlackClient } from "@/lib/slack/client";
-import { RENTAL_ISSUE_EVENT, handleRentalIssueReported, rentalIssuePayload, webhookOrigin } from "@/lib/rental-issue/relay";
+import {
+  RENTAL_ISSUE_EVENT,
+  RENTAL_ISSUE_REPLIED_EVENT,
+  handleRentalIssueReplied,
+  handleRentalIssueReported,
+  rentalIssuePayload,
+  rentalIssueRepliedPayload,
+  webhookOrigin,
+} from "@/lib/rental-issue/relay";
 import { logger } from "@/lib/logger";
 import { displayPhoneNumber } from "@/lib/utils/phone";
 import type { CsToolWebhookEvent } from "@/lib/cs-tool/types";
@@ -60,6 +68,20 @@ export async function POST(request: NextRequest) {
     if (!parsed.success) return NextResponse.json({ ok: false, error: "INVALID_PAYLOAD" }, { status: 400 });
     const handled = await handleRentalIssueReported(parsed.data, origin, { slack: getSlackClient(), env: env });
     logger.info({ origin, messageId: parsed.data.message.id, result: handled.body }, "렌탈 이상 접수 처리");
+    return NextResponse.json(handled.body, { status: handled.status });
+  }
+
+  // 렌탈 이상 접수에 직원이 CS 화면에서 답함: 접수 스레드에 남긴다.
+  if (eventType === RENTAL_ISSUE_REPLIED_EVENT) {
+    const origin = webhookOrigin(signature, timestamp, body, env);
+    if (!origin) {
+      logger.warn({ eventType }, "CS Tool 웹훅 서명 검증 실패");
+      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+    }
+    const parsed = rentalIssueRepliedPayload.safeParse((JSON.parse(body) as { data?: unknown }).data);
+    if (!parsed.success) return NextResponse.json({ ok: false, error: "INVALID_PAYLOAD" }, { status: 400 });
+    const handled = await handleRentalIssueReplied(parsed.data, origin, { slack: getSlackClient(), env: env });
+    logger.info({ origin, orderId: parsed.data.orderId, result: handled.body }, "렌탈 이상 접수 CS 답변 알림");
     return NextResponse.json(handled.body, { status: handled.status });
   }
 

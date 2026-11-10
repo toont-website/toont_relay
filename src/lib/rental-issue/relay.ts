@@ -165,6 +165,37 @@ export async function handleRentalIssueReported(
   return { status: 200, body: { ok: true, channel, ts, filesDone } };
 }
 
+// 직원이 슬랙이 아니라 CS 화면에서 답했을 때(rental.issue_replied): 같은 접수 스레드에 남겨, 슬랙만 보는 직원이 중복으로 답하지 않게 한다.
+export const RENTAL_ISSUE_REPLIED_EVENT = "rental.issue_replied";
+export const rentalIssueRepliedPayload = z.object({
+  thread: z.object({ channel: z.string().min(1).max(40), ts: z.string().min(1).max(40) }),
+  orderId: z.string().max(100),
+  staffName: z.string().max(100),
+  body: z.string().min(1).max(5000),
+  repliedAt: z.string(),
+});
+export type RentalIssueRepliedPayload = z.output<typeof rentalIssueRepliedPayload>;
+
+export async function handleRentalIssueReplied(
+  data: RentalIssueRepliedPayload,
+  origin: RentalIssueOrigin,
+  deps: { slack: Pick<WebClient, "chat">; env: Env }
+): Promise<{ status: 200; body: { ok: true; ts: string } | { ok: true; skipped: true; reason: string } } | { status: 502; body: { ok: false; error: string } }> {
+  // 스테이징 접수는 시험 채널에만 올라가 있으니 그 채널로만 단다(운영 채널에 스테이징 글이 섞이지 않게).
+  const channel = origin === "staging" ? str(deps.env, "SLACK_CHANNEL_STAGING_TEST") : data.thread.channel;
+  if (!channel) return { status: 200, body: { ok: true, skipped: true, reason: "NO_STAGING_TEST_CHANNEL" } };
+  const tag = origin === "staging" ? "[스테이징 시험] " : "";
+  const who = slackEscape(data.staffName.trim() || "담당자");
+  const text = `*${tag}${who}님이 CS 화면에서 고객에게 답했습니다* (${seoul(data.repliedAt)})\n${slackEscape(data.body)}`;
+  try {
+    const sent = await deps.slack.chat.postMessage({ channel, thread_ts: data.thread.ts, text: `${tag}CS 화면에서 고객에게 답했습니다`, blocks: [{ type: "section", text: { type: "mrkdwn", text } }] as never });
+    if (!sent.ok || !sent.ts) return { status: 502, body: { ok: false, error: `SLACK_${sent.error ?? "POST_FAILED"}` } };
+    return { status: 200, body: { ok: true, ts: sent.ts } };
+  } catch (error) {
+    return { status: 502, body: { ok: false, error: `SLACK_${(error as { data?: { error?: string } }).data?.error ?? "POST_FAILED"}` } };
+  }
+}
+
 /** 입력 창에서 보낸 답을 그 접수를 보낸 CS로 보낸다(운영·스테이징을 섞지 않는다). */
 export async function sendReplyToCs(
   meta: ReplyMeta,
