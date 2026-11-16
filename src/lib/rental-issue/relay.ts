@@ -5,9 +5,11 @@ import { z } from "zod";
 // CS 렌탈 이상 접수(rental.issue_reported)를 슬랙에 올리고, [답변하기]로 받은 답을 CS로 돌려보낸다.
 // CS는 다른 알림처럼 서명된 웹훅으로 알린다. 운영 CS는 CS_TOOL_WEBHOOK_SECRET, 스테이징 CS는 CS_STAGING_WEBHOOK_SECRET으로 서명한다.
 // 스테이징에서 온 것은 채널과 상관없이 SLACK_CHANNEL_STAGING_TEST에만 올리고, 답도 스테이징 CS로만 보낸다.
+// 일반 문의(rental.inquiry_reported)는 CS가 따로 정한 채널에 같은 방식으로 올리되 [답변하기]를 붙이지 않는다(답은 CS 화면에서 한다).
 
 export type RentalIssueOrigin = "production" | "staging";
 export const RENTAL_ISSUE_EVENT = "rental.issue_reported";
+export const RENTAL_INQUIRY_EVENT = "rental.inquiry_reported";
 export const RENTAL_ISSUE_REPLY_ACTION = "rental_issue_reply";
 export const RENTAL_ISSUE_REPLY_CALLBACK = "rental_issue_reply";
 export const RENTAL_ISSUE_REPLY_BLOCK = "reply";
@@ -48,6 +50,12 @@ export const rentalIssuePayload = z.object({
 });
 export type RentalIssuePayload = z.output<typeof rentalIssuePayload>;
 
+/** 일반 문의는 글마다 따로 올린다(스레드로 잇지 않는다). 나머지 칸은 이상 접수와 같다. */
+export const rentalInquiryPayload = rentalIssuePayload.pick({ channelId: true, reservation: true, posted: true, filesDone: true, files: true }).extend({
+  message: z.object({ id: z.string(), body: z.string(), createdAt: z.string() }),
+});
+export type RentalInquiryPayload = z.output<typeof rentalInquiryPayload>;
+
 /** [답변하기] 버튼과 입력 창이 들고 다니는 값. e: 보낸 CS(p 운영, s 스테이징), c·t: 답을 알릴 스레드. */
 export const replyMeta = z.object({
   o: z.string().min(1).max(100), i: z.string().min(1).max(100), r: z.string().min(1).max(100),
@@ -66,6 +74,15 @@ export const slackEscape = (text: string) =>
     .replace(/@(here|channel|everyone)\b/gi, "@\u200b$1");
 const seoul = (iso: string) => new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(iso));
 
+const bookingFields = (r: RentalIssuePayload["reservation"]) => ({ type: "section", fields: [
+  { type: "mrkdwn", text: `*예약번호*\n${slackEscape(r.no)}` },
+  { type: "mrkdwn", text: `*주문번호*\n${slackEscape(r.sourceOrderId)}` },
+  { type: "mrkdwn", text: `*고객*\n${slackEscape(r.customerName)} ${slackEscape(r.customerPhone)}` },
+  { type: "mrkdwn", text: `*대여 기간*\n${r.startDate} ~ ${r.endDate}` },
+  { type: "mrkdwn", text: `*행사*\n${slackEscape(r.eventName) || "-"}` },
+  { type: "mrkdwn", text: `*설치 장소*\n${slackEscape(r.address) || "-"}` },
+] });
+
 export function buildRentalIssueMessage(data: RentalIssuePayload, origin: RentalIssueOrigin): { text: string; blocks: unknown[] } {
   const body = slackEscape(data.message.body);
   const files = data.files.length > 0 ? `\n_사진 ${data.files.length}장을 이어서 올립니다._` : "";
@@ -81,17 +98,26 @@ export function buildRentalIssueMessage(data: RentalIssuePayload, origin: Rental
     text,
     blocks: [
       { type: "header", text: { type: "plain_text", text: `${tag}렌탈 이상 접수`, emoji: false } },
-      { type: "section", fields: [
-        { type: "mrkdwn", text: `*예약번호*\n${slackEscape(r.no)}` },
-        { type: "mrkdwn", text: `*주문번호*\n${slackEscape(r.sourceOrderId)}` },
-        { type: "mrkdwn", text: `*고객*\n${slackEscape(r.customerName)} ${slackEscape(r.customerPhone)}` },
-        { type: "mrkdwn", text: `*대여 기간*\n${r.startDate} ~ ${r.endDate}` },
-        { type: "mrkdwn", text: `*행사*\n${slackEscape(r.eventName) || "-"}` },
-        { type: "mrkdwn", text: `*설치 장소*\n${slackEscape(r.address) || "-"}` },
-      ] },
+      bookingFields(r),
       { type: "section", text: { type: "mrkdwn", text: `*접수 내용* (${seoul(data.message.createdAt)})\n${body}${files}` } },
       { type: "actions", elements: [{ type: "button", action_id: RENTAL_ISSUE_REPLY_ACTION, style: "primary", text: { type: "plain_text", text: "답변하기" }, value: JSON.stringify(meta) }] },
       { type: "context", elements: [{ type: "mrkdwn", text: "[답변하기]로 보낸 글만 고객에게 갑니다. 스레드 댓글은 고객에게 가지 않습니다." }] },
+    ],
+  };
+}
+
+/** 일반 문의 글. 문의에는 슬랙에서 답하는 길이 없으므로 버튼 대신 CS 화면에서 답하라고 적는다. */
+export function buildRentalInquiryMessage(data: RentalInquiryPayload, origin: RentalIssueOrigin): { text: string; blocks: unknown[] } {
+  const files = data.files.length > 0 ? `\n_첨부 ${data.files.length}개를 이어서 올립니다._` : "";
+  const tag = origin === "staging" ? "[스테이징 시험] " : "";
+  const r = data.reservation;
+  return {
+    text: `${tag}렌탈 문의 · ${r.no} · ${r.customerName}`,
+    blocks: [
+      { type: "header", text: { type: "plain_text", text: `${tag}렌탈 문의`, emoji: false } },
+      bookingFields(r),
+      { type: "section", text: { type: "mrkdwn", text: `*문의 내용* (${seoul(data.message.createdAt)})\n${slackEscape(data.message.body)}${files}` } },
+      { type: "context", elements: [{ type: "mrkdwn", text: "CS 화면(렌탈 관리 › 주문 관리)에서 답변해 주세요. 스레드 댓글은 고객에게 가지 않습니다." }] },
     ],
   };
 }
@@ -125,11 +151,15 @@ export type RentalIssueHandled =
   | { status: 200; body: { ok: true; channel: string; ts: string; filesDone: number } | { ok: true; skipped: true; reason: string } }
   | { status: 502; body: { ok: false; error: string; posted?: { channel: string; ts: string; filesDone: number } } };
 
+type Reported = Pick<RentalIssuePayload, "channelId" | "posted" | "filesDone" | "files"> & { message: { id: string; followUp?: boolean }; thread?: { channel: string; ts: string } | null };
+type ReportedDeps = { slack: Pick<WebClient, "chat" | "files">; env: Env; fetch?: typeof fetch };
+
 /** 글과 사진을 올린다. 글을 올린 뒤 사진에서 멈추면 올린 자리를 함께 돌려줘 CS가 같은 글을 다시 올리지 않게 한다. */
-export async function handleRentalIssueReported(
-  data: RentalIssuePayload,
+async function postReported(
+  data: Reported,
   origin: RentalIssueOrigin,
-  deps: { slack: Pick<WebClient, "chat" | "files">; env: Env; fetch?: typeof fetch }
+  deps: ReportedDeps,
+  build: () => { text: string; blocks: unknown[] }
 ): Promise<RentalIssueHandled> {
   const channel = origin === "staging" ? str(deps.env, "SLACK_CHANNEL_STAGING_TEST") : data.thread?.channel ?? data.posted?.channel ?? data.channelId;
   if (!channel) return { status: 200, body: { ok: true, skipped: true, reason: origin === "staging" ? "NO_STAGING_TEST_CHANNEL" : "NO_CHANNEL" } };
@@ -140,7 +170,7 @@ export async function handleRentalIssueReported(
   const threadTs = data.message.followUp ? data.thread?.ts : undefined;
   if (data.message.followUp && !threadTs) return { status: 502, body: { ok: false, error: "THREAD_MISSING" } };
   if (!ts) {
-    const built = buildRentalIssueMessage(data, origin);
+    const built = build();
     try {
       const sent = await deps.slack.chat.postMessage({ channel, text: built.text, blocks: built.blocks as never, ...(threadTs ? { thread_ts: threadTs } : {}) });
       if (!sent.ok || !sent.ts) return { status: 502, body: { ok: false, error: `SLACK_${sent.error ?? "POST_FAILED"}` } };
@@ -163,6 +193,15 @@ export async function handleRentalIssueReported(
     remember(key, { channel, ts, filesDone });
   }
   return { status: 200, body: { ok: true, channel, ts, filesDone } };
+}
+
+export function handleRentalIssueReported(data: RentalIssuePayload, origin: RentalIssueOrigin, deps: ReportedDeps): Promise<RentalIssueHandled> {
+  return postReported(data, origin, deps, () => buildRentalIssueMessage(data, origin));
+}
+
+/** 일반 문의: 같은 방식으로 글과 첨부를 올린다. 채널은 CS가 "렌탈 문의"로 정한 곳이고, 없으면 건너뛴다. */
+export function handleRentalInquiryReported(data: RentalInquiryPayload, origin: RentalIssueOrigin, deps: ReportedDeps): Promise<RentalIssueHandled> {
+  return postReported(data, origin, deps, () => buildRentalInquiryMessage(data, origin));
 }
 
 // 직원이 슬랙이 아니라 CS 화면에서 답했을 때(rental.issue_replied): 같은 접수 스레드에 남겨, 슬랙만 보는 직원이 중복으로 답하지 않게 한다.
