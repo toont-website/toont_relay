@@ -3,10 +3,13 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { getEnv } from "@/lib/config/env";
 import { getSlackClient } from "@/lib/slack/client";
 import {
+  RENTAL_INQUIRY_EVENT,
   RENTAL_ISSUE_EVENT,
   RENTAL_ISSUE_REPLIED_EVENT,
+  handleRentalInquiryReported,
   handleRentalIssueReplied,
   handleRentalIssueReported,
+  rentalInquiryPayload,
   rentalIssuePayload,
   rentalIssueRepliedPayload,
   webhookOrigin,
@@ -68,6 +71,20 @@ export async function POST(request: NextRequest) {
     if (!parsed.success) return NextResponse.json({ ok: false, error: "INVALID_PAYLOAD" }, { status: 400 });
     const handled = await handleRentalIssueReported(parsed.data, origin, { slack: getSlackClient(), env: env });
     logger.info({ origin, messageId: parsed.data.message.id, result: handled.body }, "렌탈 이상 접수 처리");
+    return NextResponse.json(handled.body, { status: handled.status });
+  }
+
+  // 렌탈 일반 문의: 이상 접수와 같은 서명·채널 규칙으로 받고, [답변하기] 없이 올린다.
+  if (eventType === RENTAL_INQUIRY_EVENT) {
+    const origin = webhookOrigin(signature, timestamp, body, env);
+    if (!origin) {
+      logger.warn({ eventType }, "CS Tool 웹훅 서명 검증 실패");
+      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+    }
+    const parsed = rentalInquiryPayload.safeParse((JSON.parse(body) as { data?: unknown }).data);
+    if (!parsed.success) return NextResponse.json({ ok: false, error: "INVALID_PAYLOAD" }, { status: 400 });
+    const handled = await handleRentalInquiryReported(parsed.data, origin, { slack: getSlackClient(), env: env });
+    logger.info({ origin, messageId: parsed.data.message.id, result: handled.body }, "렌탈 문의 처리");
     return NextResponse.json(handled.body, { status: handled.status });
   }
 
