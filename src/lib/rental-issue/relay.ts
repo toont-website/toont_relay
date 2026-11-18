@@ -1,14 +1,15 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import type { WebClient } from "@slack/web-api";
+import type { ViewsOpenArguments, WebClient } from "@slack/web-api";
 import { z } from "zod";
 
 // CS 렌탈 이상 접수(rental.issue_reported)를 슬랙에 올리고, [답변하기]로 받은 답을 CS로 돌려보낸다.
 // CS는 다른 알림처럼 서명된 웹훅으로 알린다. 운영 CS는 CS_TOOL_WEBHOOK_SECRET, 스테이징 CS는 CS_STAGING_WEBHOOK_SECRET으로 서명한다.
 // 스테이징에서 온 것은 채널과 상관없이 SLACK_CHANNEL_STAGING_TEST에만 올리고, 답도 스테이징 CS로만 보낸다.
-// 일반 문의(rental.inquiry_reported)는 CS가 따로 정한 채널에 같은 방식으로 올리되 [답변하기]를 붙이지 않는다(답은 CS 화면에서 한다).
+// 일반 문의(rental.inquiry_reported)는 CS가 따로 정한 채널에 같은 방식으로 올리고 같은 예약의 문의를 스레드로 잇는다.
 
 export type RentalIssueOrigin = "production" | "staging";
 export const RENTAL_ISSUE_EVENT = "rental.issue_reported";
+export const INQUIRY_HISTORY_ACTION = "rental_inquiry_history";
 export const RENTAL_INQUIRY_EVENT = "rental.inquiry_reported";
 export const RENTAL_ISSUE_REPLY_ACTION = "rental_issue_reply";
 export const RENTAL_ISSUE_REPLY_CALLBACK = "rental_issue_reply";
@@ -50,16 +51,18 @@ export const rentalIssuePayload = z.object({
 });
 export type RentalIssuePayload = z.output<typeof rentalIssuePayload>;
 
-/** 일반 문의는 글마다 따로 올린다(스레드로 잇지 않는다). 나머지 칸은 이상 접수와 같다. */
+/** 구버전 CS는 첫 글과 같은 형식으로 문의를 보낸다. */
 export const rentalInquiryPayload = rentalIssuePayload.pick({ channelId: true, reservation: true, posted: true, filesDone: true, files: true }).extend({
-  message: z.object({ id: z.string(), body: z.string(), createdAt: z.string() }),
+  thread: rentalIssuePayload.shape.thread.optional(),
+  message: z.object({ id: z.string(), body: z.string(), createdAt: z.string(), author: z.enum(["customer", "staff"]).optional(),
+    staffName: z.string().nullable().optional(), inquiryId: z.string().optional() }),
 });
 export type RentalInquiryPayload = z.output<typeof rentalInquiryPayload>;
 
 /** [답변하기] 버튼과 입력 창이 들고 다니는 값. e: 보낸 CS(p 운영, s 스테이징), c·t: 답을 알릴 스레드. */
 export const replyMeta = z.object({
   o: z.string().min(1).max(100), i: z.string().min(1).max(100), r: z.string().min(1).max(100),
-  e: z.enum(["p", "s"]), c: z.string().max(40).optional(), t: z.string().max(40).optional(),
+  k: z.literal("inquiry").optional(), e: z.enum(["p", "s"]), c: z.string().max(40).optional(), t: z.string().max(40).optional(),
 });
 export type ReplyMeta = z.output<typeof replyMeta>;
 export function parseReplyMeta(value: unknown): ReplyMeta | null {
@@ -106,18 +109,28 @@ export function buildRentalIssueMessage(data: RentalIssuePayload, origin: Rental
   };
 }
 
-/** 일반 문의 글. 문의에는 슬랙에서 답하는 길이 없으므로 버튼 대신 CS 화면에서 답하라고 적는다. */
 export function buildRentalInquiryMessage(data: RentalInquiryPayload, origin: RentalIssueOrigin): { text: string; blocks: unknown[] } {
-  const files = data.files.length > 0 ? `\n_첨부 ${data.files.length}개를 이어서 올립니다._` : "";
   const tag = origin === "staging" ? "[스테이징 시험] " : "";
   const r = data.reservation;
+  const staff = data.message.author === "staff";
+  const label = staff ? `${data.message.staffName || "담당자"} · 고객에게 보낸 답변` : data.thread ? "추가 문의" : "문의 내용";
+  const files = data.files.length ? ` · 첨부 ${data.files.length}개` : "";
+  const content = [
+    { type: "context", elements: [{ type: "plain_text", text: `${label} (${seoul(data.message.createdAt)})${files}` }] },
+    { type: "section", text: { type: "plain_text", text: data.message.body, emoji: false } },
+  ];
+  if (data.thread) return { text: `${tag}${label} · ${r.no}`, blocks: content };
+  const inquiryId = data.message.inquiryId ?? (staff ? undefined : data.message.id);
+  const meta: ReplyMeta | undefined = inquiryId ? { k: "inquiry", o: r.sourceOrderId, i: inquiryId, r: r.id, e: origin === "staging" ? "s" : "p" } : undefined;
   return {
     text: `${tag}렌탈 문의 · ${r.no} · ${r.customerName}`,
     blocks: [
       { type: "header", text: { type: "plain_text", text: `${tag}렌탈 문의`, emoji: false } },
       bookingFields(r),
-      { type: "section", text: { type: "mrkdwn", text: `*문의 내용* (${seoul(data.message.createdAt)})\n${slackEscape(data.message.body)}${files}` } },
-      { type: "context", elements: [{ type: "mrkdwn", text: "CS 화면(렌탈 관리 › 주문 관리)에서 답변해 주세요. 스레드 댓글은 고객에게 가지 않습니다." }] },
+      ...content,
+      ...(meta ? [{ type: "actions", elements: [{ type: "button", action_id: RENTAL_ISSUE_REPLY_ACTION, style: "primary", text: { type: "plain_text", text: "답변하기" }, value: JSON.stringify(meta) },
+        { type: "button", action_id: INQUIRY_HISTORY_ACTION, text: { type: "plain_text", text: "전체 문의 보기" }, value: JSON.stringify(meta) }] },
+        { type: "context", elements: [{ type: "plain_text", text: "답변하기로 고객에게 답변을 보냅니다. 일반 스레드 댓글은 직원끼리 볼 수 있어요." }] }] : []),
     ],
   };
 }
@@ -127,7 +140,7 @@ export function buildReplyModal(meta: ReplyMeta): unknown {
     type: "modal",
     callback_id: RENTAL_ISSUE_REPLY_CALLBACK,
     private_metadata: JSON.stringify(meta),
-    title: { type: "plain_text", text: "이상 접수 답변" },
+    title: { type: "plain_text", text: meta.k === "inquiry" ? "렌탈 문의 답변" : "이상 접수 답변" },
     submit: { type: "plain_text", text: "고객에게 보내기" },
     close: { type: "plain_text", text: "닫기" },
     blocks: [
@@ -167,7 +180,7 @@ async function postReported(
   const known = posted.get(key);
   let ts = data.posted?.ts ?? known?.ts ?? null;
   let filesDone = Math.max(data.filesDone, known?.filesDone ?? 0);
-  const threadTs = data.message.followUp ? data.thread?.ts : undefined;
+  const threadTs = data.thread?.ts;
   if (data.message.followUp && !threadTs) return { status: 502, body: { ok: false, error: "THREAD_MISSING" } };
   if (!ts) {
     const built = build();
@@ -236,20 +249,64 @@ export async function handleRentalIssueReplied(
 }
 
 /** 입력 창에서 보낸 답을 그 접수를 보낸 CS로 보낸다(운영·스테이징을 섞지 않는다). */
+function csConnection(meta: ReplyMeta, env: Env) {
+  const base = str(env, meta.e === "s" ? "CS_STAGING_API_URL" : "CS_TOOL_API_URL");
+  const key = str(env, meta.e === "s" ? "CS_STAGING_API_KEY" : "CS_TOOL_API_KEY");
+  return base && key ? { base: base.replace(/\/+$/, ""), key } : null;
+}
+
+const inquiryHistory = z.object({
+  page: z.number().int().nonnegative(), pages: z.number().int().positive(),
+  messages: z.array(z.object({ author: z.string(), body: z.string(), createdAt: z.iso.datetime({ offset: true }),
+    files: z.array(z.object({ name: z.string(), url: z.string().url().nullable() })) })),
+});
+
+type HistoryView = ViewsOpenArguments["view"];
+
+export function historyView(blocks: HistoryView["blocks"]): HistoryView {
+  return { type: "modal", title: { type: "plain_text", text: "예약 문의 내역" }, close: { type: "plain_text", text: "닫기" }, blocks };
+}
+
+export async function readInquiryHistory(meta: ReplyMeta, page: number | undefined, deps: { env: Env; fetch?: typeof fetch }): Promise<HistoryView> {
+  const cs = csConnection(meta, deps.env);
+  if (!cs || meta.k !== "inquiry") throw new Error("CS 연결 정보를 확인해 주세요.");
+  const url = new URL(cs.base + "/rental/inquiry-history");
+  url.searchParams.set("reservationId", meta.r);
+  if (page !== undefined) url.searchParams.set("page", String(page));
+  const res = await (deps.fetch ?? fetch)(url, { headers: { Authorization: `Bearer ${cs.key}` }, signal: AbortSignal.timeout(15000) });
+  if (!res.ok) throw new Error("문의 이력을 불러오지 못했습니다.");
+  const history = inquiryHistory.parse(await res.json());
+  const blocks: HistoryView["blocks"] = [{ type: "context", elements: [{ type: "plain_text", text: `주문 ${meta.o} · ${history.page + 1} / ${history.pages}쪽` }] }];
+  for (const m of history.messages) {
+    blocks.push({ type: "divider" }, { type: "context", elements: [{ type: "plain_text", text: `${m.author} · ${seoul(m.createdAt)}` }] },
+      { type: "section", text: { type: "plain_text", text: m.body, emoji: false } });
+    for (const file of m.files) {
+      blocks.push({ type: "section", text: { type: "plain_text", text: file.name },
+        ...(file.url ? { accessory: { type: "button" as const, action_id: "rental_inquiry_file", text: { type: "plain_text" as const, text: "첨부 열기" }, url: file.url } } : {}) });
+    }
+  }
+  for (const [delta, label] of [[-1, "이전 페이지"], [1, "다음 페이지"]] as const) {
+    const target = history.page + delta;
+    if (target >= 0 && target < history.pages) blocks.push({ type: "actions", elements: [{
+      type: "button", action_id: INQUIRY_HISTORY_ACTION, text: { type: "plain_text", text: label }, value: JSON.stringify({ ...meta, page: target }),
+    }] });
+  }
+  return historyView(blocks);
+}
+
 export async function sendReplyToCs(
   meta: ReplyMeta,
   body: string,
   replyKey: string,
   deps: { env: Env; fetch?: typeof fetch }
 ): Promise<{ ok: true } | { ok: false; message: string }> {
-  const base = meta.e === "s" ? str(deps.env, "CS_STAGING_API_URL") : str(deps.env, "CS_TOOL_API_URL");
-  const key = meta.e === "s" ? str(deps.env, "CS_STAGING_API_KEY") : str(deps.env, "CS_TOOL_API_KEY");
-  if (!base || !key) return { ok: false, message: "CS 연결 설정이 없어 보내지 못했습니다." };
+  const cs = csConnection(meta, deps.env);
+  if (!cs) return { ok: false, message: "CS 연결 설정이 없어 보내지 못했습니다." };
   try {
-    const response = await (deps.fetch ?? fetch)(`${base.replace(/\/+$/, "")}/rental/issue-replies`, {
+    const response = await (deps.fetch ?? fetch)(`${cs.base}/rental/${meta.k === "inquiry" ? "inquiry-replies" : "issue-replies"}`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ orderId: meta.o, issueId: meta.i, body, replyKey }),
+      headers: { Authorization: `Bearer ${cs.key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ orderId: meta.o, ...(meta.k === "inquiry" ? { inquiryId: meta.i, reservationId: meta.r } : { issueId: meta.i }), body, replyKey }),
       signal: AbortSignal.timeout(15_000),
     });
     if (response.ok) return { ok: true };
@@ -272,9 +329,9 @@ export async function deliverReplyAndNotify(
   if (input.meta.c && input.meta.t) {
     const who = input.userId ? `<@${input.userId}>` : "담당자";
     const text = sent.ok
-      ? `*${who}님이 고객에게 답했습니다*\n${slackEscape(input.body)}`
+      ? `*${who}님이 고객에게 답했습니다*`
       : `*${who}님의 답변을 보내지 못했습니다*: ${slackEscape(sent.message)}\n[답변하기]를 다시 눌러 주세요.`;
-    await deps.slack.chat.postMessage({ channel: input.meta.c, thread_ts: input.meta.t, text: sent.ok ? "고객에게 답했습니다" : "답변을 보내지 못했습니다", blocks: [{ type: "section", text: { type: "mrkdwn", text } }] as never }).catch(() => undefined);
+    await deps.slack.chat.postMessage({ channel: input.meta.c, thread_ts: input.meta.t, text: sent.ok ? "고객에게 답했습니다" : "답변을 보내지 못했습니다", blocks: [{ type: "section", text: { type: "mrkdwn", text } }, ...(sent.ok ? [{ type: "section", text: { type: "plain_text", text: input.body, emoji: false } }] : [])] as never }).catch(() => undefined);
   }
   return sent.ok;
 }

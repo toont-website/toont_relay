@@ -4,6 +4,9 @@ import { parseSlackRequest } from "@/lib/slack/verify";
 import { getSlackClient } from "@/lib/slack/client";
 import { getEnv } from "@/lib/config/env";
 import {
+  INQUIRY_HISTORY_ACTION,
+  historyView,
+  readInquiryHistory,
   RENTAL_ISSUE_REPLY_ACTION,
   RENTAL_ISSUE_REPLY_BLOCK,
   RENTAL_ISSUE_REPLY_CALLBACK,
@@ -179,6 +182,26 @@ export async function POST(request: NextRequest) {
       });
       return new NextResponse(null, { status: 200 });
     }
+  }
+
+  if (payload.type === "block_actions" && payload.actions?.[0]?.action_id === "rental_inquiry_file") {
+    return new NextResponse(null, { status: 200 });
+  }
+  if (payload.type === "block_actions" && payload.actions?.[0]?.action_id === INQUIRY_HISTORY_ACTION) {
+    const value = payload.actions[0].value;
+    const meta = parseReplyMeta(value);
+    if (meta?.k !== "inquiry") return new NextResponse(null, { status: 400 });
+    const page = JSON.parse(value).page;
+    if (page !== undefined && (!Number.isSafeInteger(page) || page < 0)) return new NextResponse(null, { status: 400 });
+    const slack = getSlackClient();
+    const loading = historyView([{ type: "section", text: { type: "plain_text", text: "문의 내역을 불러오고 있어요." } }]);
+    const id = payload.view?.id ?? (await slack.views.open({ trigger_id: payload.trigger_id, view: loading })).view?.id;
+    if (id) after(async () => {
+      const view = await readInquiryHistory(meta, page, { env: getEnv() }).catch(() =>
+        historyView([{ type: "section", text: { type: "plain_text", text: "문의 내역을 불러오지 못했어요. 창을 닫고 다시 열어 주세요." } }]));
+      await slack.views.update({ view_id: id, hash: payload.view?.hash, view }).catch(error => logger.warn({ error }, "렌탈 문의 내역 표시 실패"));
+    });
+    return new NextResponse(null, { status: 200 });
   }
 
   if (payload.type === "block_actions" && payload.actions?.[0]?.action_id === RENTAL_ISSUE_REPLY_ACTION) {
