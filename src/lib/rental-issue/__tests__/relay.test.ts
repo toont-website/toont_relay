@@ -12,6 +12,7 @@ import {
   rentalInquiryPayload,
   rentalIssueRepliedPayload,
   parseReplyMeta,
+  readInquiryHistory,
   sendReplyToCs,
   webhookOrigin,
   type RentalInquiryPayload,
@@ -234,25 +235,41 @@ describe("posting an inquiry", () => {
     ...over,
   });
 
-  it("posts 렌탈 문의 with the booking and the customer words, tells staff to answer in CS, and has no reply button", async () => {
+  it("posts 렌탈 문의 with the booking and the customer words, and opens the booking inquiry reply action", async () => {
     const s = slack();
     const out = await handleRentalInquiryReported(inquiry(), "production", { slack: s.client, env, fetch: fileFetch as never });
     expect(out).toEqual({ status: 200, body: { ok: true, channel: "CINQ", ts: "111.222", filesDone: 1 } });
     expect(s.posts[0].channel).toBe("CINQ");
     expect(s.posts[0].text).toBe("렌탈 문의 · R-1 · 김담당");
     const blocks = s.posts[0].blocks as { type: string; text?: { text: string }; fields?: { text: string }[]; elements?: { text: string }[] }[];
-    expect(blocks.map((b) => b.type)).toEqual(["header", "section", "section", "context"]);
+    expect(blocks.map((b) => b.type)).toEqual(["header", "section", "context", "section", "actions", "context"]);
     expect(blocks[0].text!.text).toBe("렌탈 문의");
     expect(blocks[1].fields!.map((f) => f.text)).toEqual([
       "*예약번호*\nR-1", "*주문번호*\nORD1", "*고객*\n김담당 010-1234-5678", "*대여 기간*\n2026-11-30 ~ 2026-12-02", "*행사*\n가을 전시", "*설치 장소*\n서울",
     ]);
-    expect(blocks[2].text!.text).toBe("*문의 내용* (11. 20. 10:00)\n설치 시간을 &lt;오후&gt;로 바꿀 수 있나요? @\u200bhere\n_첨부 1개를 이어서 올립니다._");
-    expect(blocks[3].elements![0].text).toContain("CS 화면(렌탈 관리 › 주문 관리)에서 답변해 주세요");
-    const json = JSON.stringify(blocks);
-    expect(json).not.toContain(RENTAL_ISSUE_REPLY_ACTION);
-    expect(json).not.toContain("이상 접수");
-    expect(json).not.toContain("답변하기");
+    expect(blocks[3].text!.text).toBe(inquiry().message.body);
+    expect(JSON.stringify(blocks[4])).toContain(RENTAL_ISSUE_REPLY_ACTION);
+    const action = (blocks[4].elements![0] as unknown as { value: string });
+    expect(parseReplyMeta(action.value)).toMatchObject({ k: "inquiry", o: "ORD1", i: "q1" });
     expect(s.uploads[0]).toMatchObject({ channel_id: "CINQ", thread_ts: "111.222", filename: "도면.pdf" });
+  });
+
+  it("keeps customer follow-ups and attachments on the original inquiry thread", async () => {
+    const s = slack();
+    await handleRentalInquiryReported(inquiry({ thread: { channel: "CROOT", ts: "100.1" } }), "production", { slack: s.client, env, fetch: fileFetch as never });
+    expect(s.posts[0]).toMatchObject({ channel: "CROOT", thread_ts: "100.1" });
+    expect(s.uploads[0]).toMatchObject({ channel_id: "CROOT", thread_ts: "100.1" });
+  });
+
+  it("opens the full booking history and pages through customer words, staff replies and files", async () => {
+    const fetch = vi.fn(async (_url: URL, _init: RequestInit) => Response.json({ page: 0, pages: 2,
+      messages: [{ author: "고객", body: "&".repeat(2000), createdAt: "2026-11-20T01:00:00Z", files: [{ name: "현장.jpg", url: "https://cs.stage/file" }] }] }));
+    const meta = { k: "inquiry", o: "ORD1", i: "q1", r: "res", e: "s" } as const;
+    const view = await readInquiryHistory(meta, 0, { env, fetch: fetch as never });
+    expect(fetch.mock.calls[0][0].href).toBe("https://cs.stage/api/v1/rental/inquiry-history?reservationId=res&page=0");
+    expect(view.blocks).toContainEqual({ type: "section", text: { type: "plain_text", text: "&".repeat(2000), emoji: false } });
+    expect(JSON.stringify(view)).toContain("https://cs.stage/file");
+    expect(JSON.stringify(view)).toContain("다음 페이지");
   });
 
   it("without files it says nothing about files", () => {
@@ -295,6 +312,16 @@ describe("answering from Slack", () => {
     expect(JSON.parse(String(fetch.mock.calls[0][1].body))).toEqual({ orderId: "ORD1", issueId: "m1", body: "교체해 드릴게요", replyKey: "slack:V1" });
     await sendReplyToCs({ o: "ORD1", i: "m1", r: "res", e: "p" }, "x", "slack:V2", { env, fetch: fetch as never });
     expect(fetch.mock.calls[1][0]).toBe("https://cs.prod/api/v1/rental/issue-replies");
+  });
+
+  it("routes inquiry submissions to the matching reservation and acknowledges the saved answer", async () => {
+    const s = slack();
+    const fetch = vi.fn(async (_url: string, _init: RequestInit) => Response.json({ success: true }));
+    const meta = { k: "inquiry", o: "ORD1", i: "q1", r: "res", e: "s", c: "CTEST", t: "1.1" } as const;
+    expect(await deliverReplyAndNotify({ meta, body: "변경했어요", viewId: "V5" }, { slack: s.client, env, fetch: fetch as never })).toBe(true);
+    expect(fetch.mock.calls[0][0]).toBe("https://cs.stage/api/v1/rental/inquiry-replies");
+    expect(JSON.parse(String(fetch.mock.calls[0][1].body))).toEqual({ orderId: "ORD1", reservationId: "res", inquiryId: "q1", body: "변경했어요", replyKey: "slack:V5" });
+    expect(s.posts[0]).toMatchObject({ channel: "CTEST", thread_ts: "1.1" });
   });
 
   it("tells the thread who answered, or why it did not go", async () => {
